@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math.hadoop.stochasticsvd;
 
+import java.util.Arrays;
 import java.util.Random;
 
 import org.apache.mahout.math.SequentialAccessSparseVector;
@@ -33,16 +34,20 @@ public class Omega {
 
 	private long 		m_seed;
 	private Random 		m_rnd=new Random();
-	private int 		m_columns; 
+	private int 		m_kp; 
 	
 	public Omega(long seed, int k, int p) {
 		super();
 		m_seed=seed;
-		m_columns=k+p;
+		m_kp=k+p;
 		
 		
 	}
 
+	public void accumDots ( int aIndex, double aElement, double[] yRow  ) { 
+	    m_rnd.setSeed(getOmegaRowSeed(aIndex, m_seed, m_rnd));
+	    for ( int i = 0; i < m_kp; i++ ) yRow[i]+=m_rnd.nextGaussian()*aElement;
+	}
 	
 	/**
 	 * compute YRow=ARow*Omega.
@@ -52,27 +57,33 @@ public class Omega {
 	 */
 	public void computeYRow(
 			Vector ARow,
-			Vector YRow
+			double[] YRow
 			) { 
-		if ( YRow.size()< m_columns )
-			throw new RuntimeException ( "YRow must have size at least k+p");
+		assert YRow.length== m_kp ;
 		
+		Arrays.fill(YRow, 0);
+		if ( ARow instanceof SequentialAccessSparseVector ) {
+            int j = 0; 
+            for (Element el:ARow ) {
+                accumDots ( j, el.get(),YRow);
+                j++;
+            }
+        }
+               
+        else { 
+            int n = ARow.size();
+            for ( int j = 0; j < n; j++ ) 
+                accumDots ( j,ARow.getQuick(j),YRow);
+        }
 		
-		
-		for ( int i = 0; i < m_columns; i++ ) { 
-			// set rnd to column seed
-			// TODO: perhaps there is a much better way to do this.
-			m_rnd.setSeed(m_seed+i);
-			int n = ARow.size();
-			double y_i=0;
-			if ( ARow instanceof SequentialAccessSparseVector ) 
-			    for (Element el:ARow ) 
-			        y_i+=el.get()*(m_rnd.nextGaussian());
-			       
-			else for ( int j = 0; j < n; j++ ) 
-				y_i+=ARow.getQuick(j)*(m_rnd.nextGaussian());
-			YRow.set(i,y_i);
-		}
+	}
+	
+	public long getOmegaRowSeed (int omegaRow, long omegaSeed, Random rnd ) { 
+	    rnd.setSeed(omegaSeed);
+	    long rowSeed= rnd.nextLong();
+	    rnd.setSeed(rowSeed^omegaRow);
+	    return rowSeed^rnd.nextLong();
+        
 	}
 	
 	
