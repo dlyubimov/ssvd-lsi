@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.io.Writable;
 
@@ -34,9 +35,12 @@ public final class VectorWritable extends Configured implements Writable {
   public static final int FLAG_NAMED = 0x04;
   public static final int FLAG_LAX_PRECISION = 0x08;
   public static final int NUM_FLAGS = 4;
+  
+  public static final String PROP_PREPROCESSOR = "mahout.vectorwritable.preprocessor.class";
 
   private Vector vector;
   private boolean writesLaxPrecision;
+  private VectorPreprocessor preprocessor; 
 
   public VectorWritable() {
   }
@@ -45,7 +49,24 @@ public final class VectorWritable extends Configured implements Writable {
     this.vector = vector;
   }
 
-  /**
+  
+  @Override
+  public void setConf(Configuration conf) {
+      super.setConf(conf);
+      if ( conf == null ) return;
+      if ( preprocessor == null ) { 
+          String preprocessorClass=conf.get(PROP_PREPROCESSOR);
+          if ( preprocessorClass!= null ) 
+              try { 
+                  preprocessor=Class.forName(preprocessorClass).asSubclass(VectorPreprocessor.class).newInstance();
+              } catch ( Exception exc ) { 
+                  throw new RuntimeException ( exc ); 
+              }
+      }
+      if ( preprocessor != null ) preprocessor.setConf(conf);
+  }
+
+/**
    * @return {@link Vector} that this {@link VectorWritable} is to write, or has
    *  just read
    */
@@ -70,13 +91,32 @@ public final class VectorWritable extends Configured implements Writable {
     this.writesLaxPrecision = writesLaxPrecision;
   }
 
+  /**
+   * get current matrix preprocessor 
+   * 
+   * @return matrix preprocessor
+   */
+  public VectorPreprocessor getPreprocessor() { 
+      return preprocessor;
+  }
+  
+  /**
+   * Assign matrix preprocessor 
+   * @param prep preprocessor to use
+   */
+  public void setPreprocessor ( VectorPreprocessor prep ){ 
+      preprocessor=prep;
+  }
+  
   @Override
   public void write(DataOutput out) throws IOException {
 
+	
+	  
     boolean dense = vector.isDense();
     boolean sequential = vector.isSequentialAccess();
     boolean named = vector instanceof NamedVector;
-
+    	
     boolean writesLaxPrecision = this.writesLaxPrecision;
     out.writeByte((dense ? FLAG_DENSE : 0)
         | (sequential ? FLAG_SEQUENTIAL : 0)
@@ -135,17 +175,26 @@ public final class VectorWritable extends Configured implements Writable {
     boolean named = (flags & FLAG_NAMED) != 0;
     boolean laxPrecision = (flags & FLAG_LAX_PRECISION) != 0;
 
+    boolean preprocess=false;
+
+    if ( preprocessor != null ) 
+    	preprocess=preprocessor.beginVector(sequential);
+    
+    
     int size = Varint.readUnsignedVarInt(in);
-    Vector v;
+    Vector v=null;
     if (dense) {
-      double[] values = new double[size];
-      for (int i = 0; i < size; i++) {
-        values[i] = laxPrecision ? in.readFloat() : in.readDouble();
-      }
-      v = new DenseVector(values);
+    	if ( ! preprocess ) { 
+    	  double[] values = preprocess?null:new double[size];
+          for (int i = 0; i < size; i++) {
+            values[i] = laxPrecision ? in.readFloat() : in.readDouble();
+          }
+          v = new DenseVector(values);
+    	} else for ( int i = 0; i < size; i++ ) 
+    	        preprocessor.onElement(i, laxPrecision?in.readFloat():in.readDouble());
     } else {
       int numNonDefaultElements = Varint.readUnsignedVarInt(in);
-      v = sequential
+      v = preprocess?null: sequential
           ? new SequentialAccessSparseVector(size, numNonDefaultElements)
           : new RandomAccessSparseVector(size, numNonDefaultElements);
       if (sequential) {
@@ -155,21 +204,25 @@ public final class VectorWritable extends Configured implements Writable {
           int index = lastIndex + delta;
           lastIndex = index;
           double value = laxPrecision ? in.readFloat() : in.readDouble();
-          v.setQuick(index, value);
+          if ( preprocess) preprocessor.onElement(index, value);
+          else v.setQuick(index, value);
         }
       } else {
         for (int i = 0; i < numNonDefaultElements; i++) {
           int index = Varint.readUnsignedVarInt(in);
           double value = laxPrecision ? in.readFloat() : in.readDouble();
-          v.setQuick(index, value);
+          if ( preprocess) preprocessor.onElement(index, value);
+          else v.setQuick(index, value);
         }
       }
     }
     if (named) {
       String name = in.readUTF();
-      v = new NamedVector(v, name);
+      if ( preprocess ) preprocessor.onVectorName(name);
+      else v = new NamedVector(v, name);
     }
-    vector = v;
+    if ( preprocess ) preprocessor.endVector(); 
+    else vector = v;
   }
 
   /** Write the vector to the output */
