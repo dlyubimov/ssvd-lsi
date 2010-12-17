@@ -48,7 +48,7 @@ public class SSVDPrototype {
 //	private int 		m_m;
 	private GivensThinSolver m_qSolver;
 	private double[]	m_yRow;
-	private Vector 		m_yRowV;
+//	private Vector 		m_yRowV;
 	private int 		m_cnt=0, m_blckCnt;
 	private int 		m_r;
 	private List<UpperTriangular> m_rBlocks = new ArrayList<UpperTriangular>();
@@ -63,7 +63,7 @@ public class SSVDPrototype {
 		m_kp=kp;
 		m_omega = new Omega(seed, kp/2, kp-(kp/2));
 		m_yRow = new double[kp];
-		m_yRowV = new DenseVector(m_yRow,true);
+//		m_yRowV = new DenseVector(m_yRow,true);
 		m_r=r;
 		m_yLookahead=new ArrayList<double[]>(m_kp);
 	}
@@ -73,7 +73,7 @@ public class SSVDPrototype {
 
 		
 		
-		m_omega.computeYRow(aRow, m_yRowV);
+		m_omega.computeYRow(aRow, m_yRow);
 		
 		m_yLookahead.add(m_yRow.clone()); // bad for GC but it's just a prototype, hey. in real thing we'll rotate usage of y buff
 		

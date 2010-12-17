@@ -41,7 +41,6 @@ import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 
@@ -328,7 +327,7 @@ public class QJob {
 					 m_blockCnt++;
 				 }
 			} else yRow = new double[m_kp];
-			m_omega.computeYRow(value.get(), new DenseVector(yRow,true));
+			m_omega.computeYRow(value.get(), yRow);
 			m_yLookahead.add(yRow);
 		}
 
