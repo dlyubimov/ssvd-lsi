@@ -23,9 +23,11 @@ import java.io.DataOutput;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -41,6 +43,7 @@ import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.mahout.math.VectorPreprocessor;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 
@@ -250,10 +253,51 @@ public class QJob {
 		MAPPERSUMMARY
 	}
 	
+	public static class YPreprocessor extends Configured implements VectorPreprocessor {
+
+        private Omega               m_omega;
+        private double[]            m_yRow; 
+        
+
+        @Override
+        public void setConf(Configuration conf) {
+            super.setConf(conf);
+            if ( conf == null ) return; 
+            
+            int k = Integer.parseInt(conf.get(PROP_K));
+            int p = Integer.parseInt(conf.get(PROP_P));
+            m_yRow = new double[k+p];
+            long omegaSeed = Long.parseLong(conf.get(PROP_OMEGA_SEED));
+            m_omega = new Omega(omegaSeed, k, p);
+        }
+
+        @Override
+        public boolean beginVector(boolean sequential) {
+            Arrays.fill(m_yRow, 0);
+            return true;
+        }
+
+        @Override
+        public void onElement(int index, double value) {
+            m_omega.accumDots(index, value, m_yRow);
+        }
+
+        @Override
+        public void onVectorName(String name) {
+            // TODO Auto-generated method stub
+        }
+
+        @Override
+        public void endVector() {
+            // TODO Auto-generated method stub
+        } 
+	    
+	}
+	
 	public static class QMapper extends Mapper<IntWritable, VectorWritable, QJobKeyWritable, QJobValueWritable> {
-		
+
+	    	    
 		private int 				m_kp;
-		private Omega 				m_omega;
 		private ArrayList<double[]> m_yLookahead;
 		private GivensThinSolver 	m_qSolver;
 		private int 				m_blockCnt;
@@ -327,8 +371,12 @@ public class QJob {
 					 m_blockCnt++;
 				 }
 			} else yRow = new double[m_kp];
-			m_omega.computeYRow(value.get(), yRow);
-			m_yLookahead.add(yRow);
+
+			YPreprocessor yp = (YPreprocessor)value.getPreprocessor();
+			
+			m_yLookahead.add(yp.m_yRow);
+			yp.m_yRow=yRow; // rotate buffer, avoid allocation
+			
 		}
 
 		@Override
@@ -337,10 +385,8 @@ public class QJob {
 
 			int k = Integer.parseInt(context.getConfiguration().get(PROP_K));
 			int p = Integer.parseInt(context.getConfiguration().get(PROP_P));
-			m_kp=k+p;
-			long omegaSeed = Long.parseLong(context.getConfiguration().get(PROP_OMEGA_SEED));
 			m_r = Integer.parseInt(context.getConfiguration().get(PROP_AROWBLOCK_SIZE));
-			m_omega = new Omega(omegaSeed, k, p);
+			m_kp=k+p;
 			m_yLookahead=new ArrayList<double[]>(m_kp);
 			m_outputs=new MultipleOutputs<QJob.QJobKeyWritable, QJob.QJobValueWritable>(context);
 			m_closeables.addFirst(new Closeable() {
@@ -370,6 +416,7 @@ public class QJob {
 			m_closeables.addFirst(m_tempQw);
 			m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File( m_tempQw.toString())));
 			
+			context.getConfiguration().set(VectorWritable.PROP_PREPROCESSOR, YPreprocessor.class.getName());
 			
 		}
 
