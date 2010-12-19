@@ -61,7 +61,7 @@ This branch contains enhancements to VectorWritable in order to enable vector pr
 (based on Mahout trunk). It introduces VectorPreprocessor interface. 'git diff trunk > ssvd-vw-hack.patch' 
 would produce the patch.
 
-### branch ssvd-preprocessing (WIP)
+### branch ssvd-preprocessing (alpha-ish)
 This branch is based on merge of ssvd-givens and ssvd-vw-hack and contains further alterations 
 to SSVD in order to captialize on vector preprocessing capability and thus making
 vector prebuffering is unnecessary. This opens up n-bound (width) of the source matrix in terms of RAM
@@ -69,6 +69,10 @@ and also allows for more efficient memory use in other parts of algorithms (i.e.
 reducing running time. Most importantly, it copes with the issues of occasional localized 
 spikes in data density. It also reduces GC thrashing as default VectorWritable behavior is to allocate 
 a new Vector-derived storage on each record read.
+
+Status: all code intended for this patch is here and unit tests (including larger tests) are succeeding. 
+Unit tests are using hadoop in local mode only though; i haven't yet tested it with distributed Hadoop 
+setup (which is why i call it alhpa-ish quality at this point).
 
 ### branch ssvd-wide (WIP)
 This branch introduces more efficient support for wider matrices (>30k nonzero data elements per row) in terms of 
