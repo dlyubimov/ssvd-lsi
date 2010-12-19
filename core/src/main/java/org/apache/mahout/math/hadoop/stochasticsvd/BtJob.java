@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -40,6 +41,7 @@ import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
+import org.apache.mahout.math.VectorPreprocessor;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobKeyWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobValueWritable;
@@ -67,6 +69,9 @@ public class BtJob {
         private int         m_kp;
         private VectorWritable m_qRowValue = new VectorWritable();
         private int         m_qCount; // debug
+        private Context     m_ctx;
+        
+        private static ThreadLocal<BtMapper> s_mapper = new ThreadLocal<BtJob.BtMapper>();
         
         
         void loadNextQt (Context ctx ) throws IOException, InterruptedException { 
@@ -76,7 +81,7 @@ public class BtJob {
             
             boolean more=m_qInput.next(key, v);
             assert more;
-            
+             
             m_qt=GivensThinSolver.computeQtHat(v.getQt(), m_blockNum==0?0:1,
                     new GivensThinSolver.DeepCopyUTIterator(m_Rs.iterator()));
             m_r= m_qt[0].length;
@@ -84,21 +89,6 @@ public class BtJob {
             if ( m_btValue.get()==null ) m_btValue.set(new DenseVector(m_kp));
             if ( m_qRowValue.get()==null ) m_qRowValue.set( new DenseVector ( m_kp));
             
-            // also output QHat -- although we don't know the A labels there. Is it important?
-//            DenseVector qRow = new DenseVector(m_kp);
-//            IntWritable oKey = new IntWritable();
-//            VectorWritable oV = new VectorWritable();
-//            
-//            for ( int i = m_r-1; i>=0; i-- ) { 
-//                for ( int j= 0; j < m_kp; j++ )
-//                    qRow.setQuick(j, m_qt[j][i]);
-//                oKey.set((m_blockNum<<20)+m_r-i-1); 
-//                oV.set(qRow);
-//                // so the block #s range is thus 0..2048, and number of rows per block is 0..2^20.
-//                // since we are not really sending it out to sort (it is a 'side file'), 
-//                // it doesn't matter if it overflows.
-//                m_outputs.write( OUTPUT_Q, oKey, oV);
-//            }
             m_qCount++;
         }
         
@@ -111,32 +101,36 @@ public class BtJob {
             if ( m_outputs != null ) m_outputs.close();
             super.cleanup(context);
         }
+        
+        private Vector  nextQRow (Context ctx) throws InterruptedException, IOException { 
+            if ( m_qt != null && m_cnt++==m_r ) m_qt = null; 
+            if (m_qt == null ) { loadNextQt (ctx); m_cnt = 1; }
+            int qRowIndex = m_r -m_cnt; // because QHats are initially stored in reverse 
+            Vector qRow = m_qRowValue.get();
+            for ( int j = 0; j < m_kp; j++ ) 
+                qRow.set(j, m_qt[j][qRowIndex]);
+            return qRow;
+        }
 
         @Override
         protected void map(IntWritable key, VectorWritable value,
                 Context context)
                 throws IOException, InterruptedException {
-            if ( m_qt != null && m_cnt++==m_r ) m_qt=null;
-            if ( m_qt==null ) { loadNextQt(context ); m_cnt = 1; }
-            
+
             // output Bt outer products
-            Vector aRow = value.get();
-            int qRowIndex=m_r-m_cnt; // because QHats are initially stored in reverse
-            Vector qRow = m_qRowValue.get();
-            for ( int j = 0; j < m_kp; j++ ) 
-                qRow.setQuick(j, m_qt[j][qRowIndex]);
+            // Vector aRow = value.get();
             
             m_outputs.write(OUTPUT_Q, key, m_qRowValue); // make sure Qs are inheriting A row labels.
             
-            int n=aRow.size();
-            Vector m_btRow = m_btValue.get();
-            for ( int i =0; i < n; i++ ) { 
-                double mul=aRow.getQuick(i);
-                for ( int j = 0; j< m_kp; j++ ) 
-                    m_btRow.setQuick(j, mul*qRow.getQuick(j));
-                m_btKey.set(i);
-                context.write(m_btKey, m_btValue);
-            }
+//            int n=aRow.size();
+//            Vector m_btRow = m_btValue.get();
+//            for ( int i =0; i < n; i++ ) { 
+//                double mul=aRow.getQuick(i);
+//                for ( int j = 0; j< m_kp; j++ ) 
+//                    m_btRow.setQuick(j, mul*qRow.getQuick(j));
+//                m_btKey.set(i);
+//                context.write(m_btKey, m_btValue);
+//            }
             
         }
 
@@ -184,7 +178,68 @@ public class BtJob {
                 block++;
             }
             m_outputs = new MultipleOutputs<IntWritable, VectorWritable>(context);
+            m_ctx=context;
+            s_mapper.set(this);
+            context.getConfiguration().set(VectorWritable.PROP_PREPROCESSOR, ARowPreprocessor.class.getName());
         } 
+        
+        
+	}
+	
+	public static class ARowPreprocessor extends Configured implements VectorPreprocessor {
+
+	    private BtMapper  m_mapper;
+	    private Vector     m_qRow;
+	    
+        @Override
+        public void setConf(Configuration conf) {
+            super.setConf(conf);
+            if ( conf == null ) return; 
+            m_mapper=BtMapper.s_mapper.get();
+            assert m_mapper != null;
+        }
+
+        @Override
+        public boolean beginVector(boolean sequential) {
+            try { 
+                m_qRow=m_mapper.nextQRow(m_mapper.m_ctx);
+            } catch ( Exception exc ) { throw new RuntimeException ( exc ); }
+            return true;
+        }
+
+        @Override
+        public void onElement(int index, double value) {
+            Vector btRow = m_mapper.m_btValue.get();
+            assert btRow != null; 
+            
+            /*
+             * form and output Bt partial products here on the fly
+             */
+            for ( int j =0; j < m_mapper.m_kp; j++ ) 
+                btRow.setQuick(j, m_qRow.getQuick(j)*value);
+            
+            m_mapper.m_btKey.set(index);
+            
+            try {
+                m_mapper.m_ctx.write(m_mapper.m_btKey, m_mapper.m_btValue);
+            } catch ( Exception exc ) { throw new RuntimeException (exc ); }
+            
+            
+            
+        }
+
+        @Override
+        public void onVectorName(String name) {
+            // TODO Auto-generated method stub
+            
+        }
+
+        @Override
+        public void endVector() {
+            // TODO Auto-generated method stub
+            
+        } 
+	    
 	}
 	
 
