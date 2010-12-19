@@ -200,15 +200,15 @@ public class BtJob {
         }
 
         @Override
-        public boolean beginVector(boolean sequential) {
+        public boolean beginVector(boolean sequential) throws IOException {
             try { 
                 m_qRow=m_mapper.nextQRow(m_mapper.m_ctx);
-            } catch ( Exception exc ) { throw new RuntimeException ( exc ); }
+            } catch ( InterruptedException exc ) { throw new IOException ( exc ); }
             return true;
         }
 
         @Override
-        public void onElement(int index, double value) {
+        public void onElement(int index, double value) throws IOException {
             Vector btRow = m_mapper.m_btValue.get();
             assert btRow != null; 
             
@@ -222,9 +222,7 @@ public class BtJob {
             
             try {
                 m_mapper.m_ctx.write(m_mapper.m_btKey, m_mapper.m_btValue);
-            } catch ( Exception exc ) { throw new RuntimeException (exc ); }
-            
-            
+            } catch ( InterruptedException exc ) { throw new IOException (exc ); }
             
         }
 
