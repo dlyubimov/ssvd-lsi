@@ -1,5 +1,7 @@
 package org.apache.mahout.math;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configurable;
 
 /**
@@ -21,25 +23,25 @@ public interface VectorPreprocessor extends Configurable {
 	 * if preprocessing is not supported, {@link VectorWritable} accumulates 
 	 * the vector in the usual way instead of feeding to the preprocessor. 
 	 */
-	boolean beginVector ( boolean sequential );
+	boolean beginVector ( boolean sequential ) throws IOException;
 	
 	/**
 	 * called when next vector element becomes available. 
 	 * @param index
 	 * @param value
 	 */
-	void onElement ( int index, double value ); 
+	void onElement ( int index, double value ) throws IOException; 
 	
 	/**
 	 * called for named vectors if vector name is available.
 	 * 
 	 * @param name
 	 */
-	void onVectorName ( String name ) ; 
+	void onVectorName ( String name ) throws IOException ; 
 	/**
 	 * called after last element is processed.
 	 */
-	void endVector ();
+	void endVector () throws IOException;
 	
 
 }
