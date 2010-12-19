@@ -6,7 +6,7 @@ This is repository for keeping working notes and usage etc. documentation
 for series of patches and various branches in *svd-lsi* repostiory. 
 
 *svd-lsi* repository represents a series of patches for Apache Mahout project 
-mainly growing out of MAHOUT-376 work. I decided to sync my home git repo with 
+mainly growing out of [MAHOUT-376]( https://issues.apache.org/jira/browse/MAHOUT-376) work. I decided to sync my home git repo with 
 github mainly 
 out of my deep distrust towards my computer's hardware being 
 a sole copy of this repository branches. 
@@ -47,7 +47,7 @@ to go thru.
 ### ssvd-givens in ssvd-lsi repo 
 is current stable version with distributed QR step based on Givens rotations. 
 It has a bunch of limitations as discussed int the 
-[working notes](https://github.com/dlyubimov/ssvd-doc/blob/master/SSVD%20working%20notes.pdf) but 
+[working notes](https://github.com/dlyubimov/ssvd-lsi/raw/doc/SSVD%20working%20notes.pdf) but 
 is quite suitable for most LSI work where average number of lemmas per document does not exceed 30k or so.
 
 ### branch ssvd-vw-hack in ssvd-lsi
