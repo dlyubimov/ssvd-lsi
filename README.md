@@ -46,13 +46,20 @@ to go thru.
 
 ### ssvd-givens in ssvd-lsi repo 
 is current stable version with distributed QR step based on Givens rotations. 
-It has a bunch of limitations as discussed int the 
+This version by my estimates should scale at least to spec of 1 million by 1 billion dense data 
+matrix in input for memory, assuming -Xmx1G for mapper child processes. 
+
+It has a bunch of limitations for network I/O as discussed int the 
 [working notes](https://github.com/dlyubimov/ssvd-lsi/raw/doc/SSVD%20working%20notes.pdf) but 
-is quite suitable for most LSI work where average number of lemmas per document does not exceed 30k or so.
+is optimized for most LSI work where average number of lemmas per document does not exceed 30k .
+
+That said, even with perceived I/O deficiencies for wider matrices, this algorithm is expected 
+to be CPU bound to such degree that seemingly far overshadows any I/O concerns.
 
 ### branch ssvd-vw-hack in ssvd-lsi
 This branch contains enhancements to VectorWritable in order to enable vector preprocessing capability 
-(based on Mahout trunk). It introduces VectorPreprocessor interface.
+(based on Mahout trunk). It introduces VectorPreprocessor interface. 'git diff trunk > ssvd-vw-hack.patch' 
+would produce the patch.
 
 ### branch ssvd-preprocessing (WIP)
 This branch is based on merge of ssvd-givens and ssvd-vw-hack and contains further alterations 
@@ -64,15 +71,21 @@ spikes in data density. It also reduces GC thrashing as default VectorWritable b
 a new Vector-derived storage on each record read.
 
 ### branch ssvd-wide (WIP)
-This branch introduces more efficient support for wider matrices (>30k nonzero data elements per row). This 
-is based on ssvd-preprocessing branch. When A blocks become too big to fit into an hdfs split, one has to choices: 
+This branch introduces more efficient support for wider matrices (>30k nonzero data elements per row) in terms of 
+MapReduce network I/O. 
+
+This branch 
+is based on ssvd-preprocessing branch. 
+
+When A blocks become too big to fit into an hdfs split, one has to choices: 
 either to increase the FileInput's minSplitSize parameter, or aggregate Y rows and send them to reducer. 
 This to a significant degree solves "supersplits" problem defined in p. 6.2 of the working notes.
+
 This should make I/O significantly more forgiving for wide matrices up to about 8 million non-zero elements in 
 a row. 
 
 After ~8 million in dense width, A matrix I/O would become an issue again but at this point i speculate 
-that CPU will be far narrower bottleneck by then.
+that CPU will be far narrower bottleneck by then (as well as before this number).
 
 ### branch ssvd-spliced-input (possible future work)
 This branch will solve issue of input io beyond 8 million dense elements in a row per above. At this point 
