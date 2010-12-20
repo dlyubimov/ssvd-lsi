@@ -91,7 +91,7 @@ a row.
 After ~8 million in dense width, A matrix I/O would become an issue again but at this point i speculate 
 that CPU will be far narrower bottleneck by then (as well as before this number).
 
-### ssvd-tall (not started)
+### branch ssvd-tall (not started)
 If billion rows doesn't sound like a sufficient scale, or if one wanted to work that scale under low RAM specs 
 in child processes, or one would significantly increase number of singular values assessed (which increases 
 quality of stochastic projection), then this branch is expected to address that. Each additional map-only 
@@ -113,8 +113,8 @@ now, so this works would depend on ways to produce such inputs.
 
 3) I have a strong suspicion that CPU will 
 be far narrower bottleneck than network IO in such situation. I might be wrong, certain commercial applications 
-actually might benefit from this approach, but i think it is very unlikely OSS crows would have to deal with 
-this. 
+actually might benefit from this approach, but i think it is very unlikely most of OSS crowd would have to deal
+with that scale.
 
 
 
