@@ -78,18 +78,28 @@ setup (which is why i call it alhpa-ish quality at this point).
 This branch introduces more efficient support for wider matrices (>30k nonzero data elements per row) in terms of 
 MapReduce network I/O. 
 
-This branch 
-is based on ssvd-preprocessing branch. 
+This branch is based on ssvd-preprocessing branch. 
 
 When A blocks become too big to fit into an hdfs split, one has to choices: 
 either to increase the FileInput's minSplitSize parameter, or aggregate Y rows and send them to reducer. 
-This to a significant degree solves "supersplits" problem defined in p. 6.1 of the working notes.
+This to a significant degree solves "supersplits" p
+roblem defined in p. 6.1 of the working notes.
 
 This should make I/O significantly more forgiving for wide matrices up to about 8 million non-zero elements in 
 a row. 
 
 After ~8 million in dense width, A matrix I/O would become an issue again but at this point i speculate 
 that CPU will be far narrower bottleneck by then (as well as before this number).
+
+### ssvd-tall (not started)
+If billion rows doesn't sound like a sufficient scale, or if one wanted to work that scale under low RAM specs 
+in child processes, or one would significantly increase number of singular values assessed (which increases 
+quality of stochastic projection), then this branch is expected to address that. Each additional map-only 
+pass over Q, R blocks will increase scale for number of rows approximately 1000 times.
+
+It is possible to expect to have _ssvd-tall_ + _ssvd_wide_ combined branch which would really open up 
+bounds for both width and height of A without incurring significant RAM or IO penalty. 
+(decrease in RAM would translate into some CPU penalty though, so there's no quite free lunch here).
 
 ### branch ssvd-spliced-input (possible future work)
 This branch will solve issue of input io beyond 8 million dense elements in a row per above. At this point 
