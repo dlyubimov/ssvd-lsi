@@ -64,7 +64,7 @@ would produce the patch.
 ### branch ssvd-preprocessing (alpha-ish)
 This branch is based on merge of ssvd-givens and ssvd-vw-hack and contains further alterations 
 to SSVD in order to captialize on vector preprocessing capability and thus making
-vector prebuffering is unnecessary. This opens up n-bound (width) of the source matrix in terms of RAM
+vector prebuffering unnecessary. This opens up n-bound (width) of the source matrix in terms of RAM
 and also allows for more efficient memory use in other parts of algorithms (i.e. higher blocks) thus 
 reducing running time. Most importantly, it copes with the issues of occasional localized 
 spikes in data density. It also reduces GC thrashing as default VectorWritable behavior is to allocate 
@@ -83,7 +83,7 @@ is based on ssvd-preprocessing branch.
 
 When A blocks become too big to fit into an hdfs split, one has to choices: 
 either to increase the FileInput's minSplitSize parameter, or aggregate Y rows and send them to reducer. 
-This to a significant degree solves "supersplits" problem defined in p. 6.2 of the working notes.
+This to a significant degree solves "supersplits" problem defined in p. 6.1 of the working notes.
 
 This should make I/O significantly more forgiving for wide matrices up to about 8 million non-zero elements in 
 a row. 
