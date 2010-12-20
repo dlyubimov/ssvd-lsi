@@ -110,7 +110,8 @@ this.
 
 ## How to use 
 
-### branch *ssvd-givens*
+### branch *ssvd-givens* and *ssvd-preprocessing*
+
 This branch contains more or less stable code optimized for tall but relatively thin (n=30,000...50,000 
 non-zero elements). With 1G memory in child processes and right combination of block height, min split size 
 and k,p parameters it is expected to be able to process 1 billion rows or more with 
@@ -160,6 +161,10 @@ Output
 ### branch ssvd-givens
 See Working Notes document, paragraph 6. I will be adding some experimental branches aimed at
 doing easiest of optimizations providing satisfactory solution within existing vector framework.
+
+### branch ssvd-preprocessing 
+_SSVD-preprocessing_ branch addresses limitation as described in 6.2 but still has a "supersplits" IO issue 
+as described in 6.1 of the working notes.
 
 ## License 
 
