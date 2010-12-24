@@ -44,6 +44,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.math.VectorPreprocessor;
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 
@@ -66,109 +67,6 @@ public class QJob {
 	public static final String 			OUTPUT_QHAT="QHat";
 //	public static final String          OUTPUT_Q="Q";
 	public static final String          OUTPUT_Bt="Bt";
-	
-	public static class QJobValueWritable implements Writable { 
-		private KeyType 		m_keytype;
-		private UpperTriangular m_R;
-		private double[][]		m_qt;
-		private MapperSummary	m_summary;
-		
-		@Override
-		public void readFields(DataInput in) throws IOException {
-			m_keytype=KeyType.values()[in.readInt()];
-			switch ( m_keytype) { 
-			case MAPPERSUMMARY:
-				m_summary = new MapperSummary();
-				m_summary.readFields(in);
-				break;
-			case QBLOCK:
-				int m=in.readInt();
-				int n=in.readInt();
-				m_qt=new double[m][];
-				for ( int i = 0; i < m; i++) { 
-					m_qt[i]=new double[n];
-					for ( int j = 0; j < n; j++ ) m_qt[i][j]=in.readDouble();
-				}
-				break;
-			case RBLOCK: 
-				int l = in.readInt();
-				double[] rdata = new double[l];
-				for ( int i =0; i < l; i++) rdata[i]=in.readDouble();
-				m_R=new UpperTriangular(rdata,true);
-				break;
-			default: throw new IOException ( "Unsupported value type");
-			}
-			
-			
-		}
-		@Override
-		public void write(DataOutput out) throws IOException {
-			out.writeInt(m_keytype.ordinal());
-			switch ( m_keytype ) { 
-			case MAPPERSUMMARY: 
-				m_summary.write(out);
-				break; 
-			case QBLOCK: 
-				out.writeInt ( m_qt.length);
-				out.writeInt ( m_qt[0].length);
-				for ( int i = 0; i < m_qt.length; i++ ) 
-					for ( int j = 0; j < m_qt[i].length;j++) 
-						out.writeDouble(m_qt[i][j]);
-				break;
-			case RBLOCK:
-				double[] data=m_R.getData();
-				out.writeInt(data.length);
-				for ( int i = 0; i < data.length; i++ ) out.writeDouble(data[i]);
-				break;
-			}
-			
-		}
-		public UpperTriangular getR() {
-			return m_R;
-		}
-		public void setR(UpperTriangular r) {
-			this.m_R = r;
-			m_keytype=KeyType.RBLOCK;
-		}
-		public double[][] getQt() {
-			return m_qt;
-		}
-		public void setQt(double[][] qt) {
-			this.m_qt = qt;
-			m_keytype=KeyType.QBLOCK;
-		}
-		public MapperSummary getSummary() {
-			return m_summary;
-		}
-		public void setSummary(MapperSummary summary) {
-			this.m_summary = summary;
-			m_keytype=KeyType.MAPPERSUMMARY;
-		}
-		
-		
-	}
-	
-	public static class MapperSummary implements Writable { 
-		private long 			splitStart; 
-		private long 			splitLen;
-		private int 			numBlocks;
-		
-		@Override
-		public void readFields(DataInput in) throws IOException {
-			splitStart = in.readLong();
-			splitLen = in.readLong();
-			numBlocks= in .readInt();
-			
-		}
-		@Override
-		public void write(DataOutput out) throws IOException {
-			out.writeLong(splitStart);
-			out.writeLong(splitLen);
-			out.writeInt(numBlocks);
-			
-		}
-		
-	}
 	
 	public static class QJobKeyWritable implements WritableComparable<QJobKeyWritable> {
 		
@@ -205,11 +103,6 @@ public class QJob {
 	}
 
 
-	private static enum KeyType { 
-		QBLOCK,
-		RBLOCK,
-		MAPPERSUMMARY
-	}
 	
 	public static class YPreprocessor extends Configured implements VectorPreprocessor {
 
@@ -261,10 +154,10 @@ public class QJob {
 		private int 				m_blockCnt;
 //		private int 				m_reducerCount;
 		private int 				m_r;
-		private QJobValueWritable	m_value = new QJobValueWritable();
+		private DenseBlockWritable	m_value = new DenseBlockWritable();
 		private QJobKeyWritable		m_key = new QJobKeyWritable();
 		private IntWritable         m_tempKey = new IntWritable();
-		private MultipleOutputs<QJobKeyWritable, QJobValueWritable>     m_outputs;
+		private MultipleOutputs<QJobKeyWritable, Writable>     m_outputs;
 		private LinkedList<Closeable> m_closeables = new LinkedList<Closeable>();
 		private SequenceFile.Writer   m_tempQw;
 		private Path                  m_tempQPath;
@@ -275,16 +168,14 @@ public class QJob {
 			 double[][]qt = m_qSolver.getThinQtTilde();
 			 m_qSolver =null;
 
-			 m_value.setR(r);
-			 
 			 m_rSubseq.add(new UpperTriangular(r));
 			 
-			 m_value.setQt(qt);
+			 m_value.setBlock(qt);
 			 m_tempQw.append(m_tempKey, m_value); // this probably should be a sparse row matrix, 
 			                         // but compressor should get it for disk and in memory we want it 
 			                         // dense anyway, sparse random implementations would be 
 			                         // a mostly a  memory management disaster consisting of rehashes and GC thrashing. (IMHO)
-			 m_value.setQt(null);
+			 m_value.setBlock(null);
 		}
 		
 		// second pass to run a modified version of computeQHatSequence.
@@ -294,8 +185,8 @@ public class QJob {
 		    m_closeables.addFirst(m_tempQr);
 		    int qCnt = 0; 
 		    while ( m_tempQr.next(m_tempKey,m_value)) { 
-                m_value.setQt(GivensThinSolver.computeQtHat(
-                        m_value.getQt(), qCnt, 
+                m_value.setBlock(GivensThinSolver.computeQtHat(
+                        m_value.getBlock(), qCnt, 
                         new GivensThinSolver.DeepCopyUTIterator(m_rSubseq.iterator())));
                 if ( qCnt == 1 ) // just merge r[0] <- r[1] so it doesn't have to repeat in subsequent computeQHat iterators
                     GivensThinSolver.mergeR(m_rSubseq.get(0), m_rSubseq.remove(1));
@@ -306,10 +197,9 @@ public class QJob {
 		    
 		    assert m_rSubseq.size()==1;
 
-		    m_value.setR(m_rSubseq.get(0));
-	        m_outputs.write(OUTPUT_R, m_key, m_value);
+//		    m_value.setR(m_rSubseq.get(0));
+	        m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),true)));
 	        
-	        m_value.setR(null);
 
 		}
 
@@ -336,6 +226,7 @@ public class QJob {
 		}
 
 		@Override
+		@SuppressWarnings({"rawtypes","unchecked"})
 		protected void setup(final Context context) throws IOException,
 				InterruptedException {
 
@@ -344,7 +235,7 @@ public class QJob {
 			m_r = Integer.parseInt(context.getConfiguration().get(PROP_AROWBLOCK_SIZE));
 			m_kp=k+p;
 			m_yLookahead=new ArrayList<double[]>(m_kp);
-			m_outputs=new MultipleOutputs<QJob.QJobKeyWritable, QJob.QJobValueWritable>(context);
+			m_outputs=new MultipleOutputs(context);
 			m_closeables.addFirst(new Closeable() {
                 @Override
                 public void close() throws IOException {
@@ -367,7 +258,7 @@ public class QJob {
 			        context.getConfiguration(), 
 			        m_tempQPath, 
 			        IntWritable.class, 
-			        QJobValueWritable.class,
+			        DenseBlockWritable.class,
 			        CompressionType.BLOCK );
 			m_closeables.addFirst(m_tempQw);
 			m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File( m_tempQw.toString())));
@@ -433,20 +324,20 @@ public class QJob {
 		
 		MultipleOutputs.addNamedOutput(job, OUTPUT_QHAT,
 		        SequenceFileOutputFormat.class,
-		        QJobKeyWritable.class,QJobValueWritable.class);
+		        QJobKeyWritable.class,DenseBlockWritable.class);
 		MultipleOutputs.addNamedOutput(job, OUTPUT_R,
 		        SequenceFileOutputFormat.class,
-		        QJobKeyWritable.class, QJobValueWritable.class);
+		        QJobKeyWritable.class, VectorWritable.class);
 		
 		SequenceFileOutputFormat.setCompressOutput(job, true);
 		SequenceFileOutputFormat.setOutputCompressorClass(job, DefaultCodec.class);
 		SequenceFileOutputFormat.setOutputCompressionType(job, CompressionType.BLOCK);
 		
 		job.setMapOutputKeyClass(QJobKeyWritable.class);
-		job.setMapOutputValueClass(QJobValueWritable.class);
+		job.setMapOutputValueClass(VectorWritable.class);
 		
 		job.setOutputKeyClass(QJobKeyWritable.class);
-		job.setOutputValueClass(QJobValueWritable.class);
+		job.setOutputValueClass(VectorWritable.class);
 		
 		job.setMapperClass(QMapper.class);
 		
