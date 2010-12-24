@@ -42,6 +42,11 @@ public class UpperTriangular extends AbstractMatrix {
 		cardinality[0]=cardinality[1]=m_n;
 	}
 	
+	public UpperTriangular ( Vector data ) { 
+	    this (data.size());
+	    int n=data.size();
+	    for ( int i = 0; i < n; i++ ) m_values[i]=data.getQuick(i);
+	}
 	
 	public UpperTriangular(double[] data, boolean shallow ) {
 		super();

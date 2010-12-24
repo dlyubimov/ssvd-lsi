@@ -44,7 +44,6 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorPreprocessor;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobKeyWritable;
-import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobValueWritable;
 
 public class BtJob {
     
@@ -76,13 +75,13 @@ public class BtJob {
         
         void loadNextQt (Context ctx ) throws IOException, InterruptedException { 
             QJobKeyWritable key = new QJobKeyWritable();
-            QJobValueWritable v = new QJobValueWritable();
+            DenseBlockWritable v = new DenseBlockWritable();
             
             
             boolean more=m_qInput.next(key, v);
             assert more;
              
-            m_qt=GivensThinSolver.computeQtHat(v.getQt(), m_blockNum==0?0:1,
+            m_qt=GivensThinSolver.computeQtHat(v.getBlock(), m_blockNum==0?0:1,
                     new GivensThinSolver.DeepCopyUTIterator(m_Rs.iterator()));
             m_r= m_qt[0].length;
             m_kp=m_qt.length;
@@ -162,7 +161,7 @@ public class BtJob {
             Arrays.sort(rFiles, SSVDSolver.s_partitionComparator);
             
             QJobKeyWritable rKey = new QJobKeyWritable();
-            QJobValueWritable rValue = new QJobValueWritable();
+            VectorWritable rValue = new VectorWritable();
             
             int block=0;
             for ( FileStatus fstat:rFiles ) { 
@@ -173,8 +172,8 @@ public class BtJob {
                     rReader.close();
                 }
                 if ( block<m_blockNum&&block>0)
-                    GivensThinSolver.mergeR(m_Rs.get(0), rValue.getR());
-                else m_Rs.add(rValue.getR());
+                    GivensThinSolver.mergeR(m_Rs.get(0), new UpperTriangular(rValue.get()));
+                else m_Rs.add(new UpperTriangular ( rValue.get()));
                 block++;
             }
             m_outputs = new MultipleOutputs<IntWritable, VectorWritable>(context);
