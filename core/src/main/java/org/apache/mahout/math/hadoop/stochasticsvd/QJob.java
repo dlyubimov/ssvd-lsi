@@ -145,7 +145,7 @@ public class QJob {
 	    
 	}
 	
-	public static class QMapper extends Mapper<IntWritable, VectorWritable, QJobKeyWritable, QJobValueWritable> {
+	public static class QMapper extends Mapper<IntWritable, VectorWritable, QJobKeyWritable, VectorWritable> {
 
 	    	    
 		private int 				m_kp;
