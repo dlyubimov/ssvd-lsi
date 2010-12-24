@@ -166,78 +166,36 @@ public class QJob {
 		}
 		
 	}
+	
 	public static class QJobKeyWritable implements WritableComparable<QJobKeyWritable> {
 		
-		private KeyType	  		m_keytype;
-		private long 			m_splitStart;
-		private int 			m_mapperBlockOrdinal;
-		private int 			m_targetReducer;
+	    private int taskId;
+	    private int taskRowOrdinal;
 		
 
 		@Override
 		public void readFields(DataInput in) throws IOException {
-			m_keytype=KeyType.values()[in.readInt()];
-			m_splitStart=in.readLong();
-			m_mapperBlockOrdinal = in.readInt();
-			m_targetReducer=in.readInt();
+		    taskId=in.readInt();
+		    taskRowOrdinal = in.readInt();
 		}
 
 		@Override
 		public void write(DataOutput out) throws IOException {
-			out.writeInt(m_keytype.ordinal());
-			out.writeLong(m_splitStart);
-			out.writeInt(m_mapperBlockOrdinal);
-			out.writeInt(m_targetReducer);
+		    out.writeInt(taskId);
+		    out.writeInt(taskRowOrdinal);
 		}
 		
 
 		@Override
 		public int compareTo(QJobKeyWritable o) {
-			if ( m_keytype==o.m_keytype) { 
-				if ( m_splitStart<o.m_splitStart) return -1; 
-				else if ( m_splitStart>o.m_splitStart) return 1; 
-				else return m_mapperBlockOrdinal-o.m_mapperBlockOrdinal;
-			}
-			switch ( m_keytype ) { 
-			case MAPPERSUMMARY: return -1; 
-			case RBLOCK: switch ( o.m_keytype )  { 
-			case MAPPERSUMMARY: return 1; 
-			default: return -1;
-			}
-			default:return 1;
-			}
+		    if ( taskId < o.taskId ) return -1; 
+		    else if ( taskId > o.taskId ) return 1; 
+		    if ( taskRowOrdinal< o.taskRowOrdinal) return -1; 
+		    else if ( taskRowOrdinal>o.taskRowOrdinal) return 1; 
+		    return 0; 
 		}
 		
 
-		@Override
-		public int hashCode() {
-			final int prime = 31;
-			int result = 1;
-			result = prime * result
-					+ ((m_keytype == null) ? 0 : m_keytype.hashCode());
-			result = prime * result + m_mapperBlockOrdinal;
-			result = prime * result
-					+ (int) (m_splitStart ^ (m_splitStart >>> 32));
-			return result;
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (this == obj)
-				return true;
-			if (obj == null)
-				return false;
-			if (getClass() != obj.getClass())
-				return false;
-			QJobKeyWritable other = (QJobKeyWritable) obj;
-			if (m_keytype != other.m_keytype)
-				return false;
-			if (m_mapperBlockOrdinal != other.m_mapperBlockOrdinal)
-				return false;
-			if (m_splitStart != other.m_splitStart)
-				return false;
-			return true;
-		}
 
 
 		
@@ -299,13 +257,11 @@ public class QJob {
                     GivensThinSolver.mergeR(m_rSubseq.get(0), m_rSubseq.remove(1));
                     
                 else qCnt++;
-                m_key.m_keytype=KeyType.QBLOCK;
                 m_outputs.write(OUTPUT_QHAT, m_key, m_value);
 		    }
 		    
 		    assert m_rSubseq.size()==1;
 
-		    m_key.m_keytype=KeyType.RBLOCK;
 		    m_value.setR(m_rSubseq.get(0));
 	        m_outputs.write(OUTPUT_R, m_key, m_value);
 	        
