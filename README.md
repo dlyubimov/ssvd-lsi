@@ -25,6 +25,7 @@ over data.
 This particular project is focused on developing techniques allowing for parallelization of 
 SSVD computation on top of MapReduce framework and Mahout's vectorization framework. 
 
+
 Most of SSVD applications are expected to be revolving around PCA (Principal Component Analysis)
 as well as LSI. Mahout also uses SVD computations for recommender work, although 
 quality of such recomendations is often (IMO) questionable as in practice such 
@@ -33,6 +34,9 @@ recommendation input is often too sparse for SVD to make good predictions.
 My interest in SVD is primarily LSI (nlp) work, context disambiguation and cross-language 
 information retrieval applications. I may be looking into PCA and dimensionality reduction 
 in certain cases.
+
+I saw some ocasional use of SSVD acronym in literature to also denote "Standard SVD" as opposed to other methods. 
+Stochastic SVD is not standard SVD, those are quite different meanings.
 
 ## Build & Install
 This code uses new Hadoop API which is only partially supported in hadoop 0.20.x. 
