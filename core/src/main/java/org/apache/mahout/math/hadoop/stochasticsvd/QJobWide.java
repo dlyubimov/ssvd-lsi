@@ -20,21 +20,30 @@ package org.apache.mahout.math.hadoop.stochasticsvd;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Partitioner;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
@@ -43,6 +52,9 @@ import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorPreprocessor;
 import org.apache.mahout.math.VectorWritable;
+import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobKeyWritable;
+import org.apache.mahout.math.hadoop.stochasticsvd.QJob.YPreprocessor;
+import org.apache.mahout.math.hadoop.stochasticsvd.QJobWide.QWideKeyWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 
 /**
@@ -198,6 +210,219 @@ public class QJobWide {
 		} 
 	}
 	
+	public static class QWideTempWritable implements Writable, Iterable<QWideKeyWritable> { 
+	    private DenseBlockWritable m_block = new DenseBlockWritable();
+	    private int                m_firstRowNum; 
+	    private int[]              m_taskIds = new int[24];
+	    private int[]              m_taskIdSkips = new int[24];
+	    private int                m_idCnt;
+	    
+
+	    public DenseBlockWritable getBlock() { return m_block; } 
+	    
+	    public void reset () { 
+	        m_idCnt=0;
+	    }
+	    
+	    public void appendId ( QWideKeyWritable id ) { 
+	        int lastTaskId=m_idCnt==0?-1:m_taskIds[m_idCnt-1];
+	        if ( lastTaskId==id.m_taskId) { 
+	            m_taskIdSkips[m_idCnt-1]++;
+	            
+	            assert id.m_taskRowOrdinal+1==m_taskIdSkips[m_idCnt-1]; // ordinals must be numbered sequentially
+	            
+	            return;
+	        }
+	        
+	        if ( m_idCnt+1==m_taskIds .length ) { 
+	            m_taskIds = Arrays.copyOf(m_taskIds, m_taskIds.length<<1);
+	            m_taskIdSkips=Arrays.copyOf(m_taskIdSkips, m_taskIdSkips.length<<1);
+	        }
+	        if ( m_idCnt==0) m_firstRowNum=id.m_taskRowOrdinal;
+	        m_taskIds[m_idCnt]=id.m_taskId;
+	        m_taskIdSkips[m_idCnt]=1;
+	        m_idCnt++;
+	    }
+	    
+	    @Override
+        public Iterator<QWideKeyWritable> iterator() {
+	        final QWideKeyWritable result = new QWideKeyWritable();
+	        return new Iterator<QJobWide.QWideKeyWritable>() {
+
+                @Override
+                public boolean hasNext() {
+                    // TODO Auto-generated method stub
+                    return false;
+                }
+
+                @Override
+                public QWideKeyWritable next() {
+                    // TODO Auto-generated method stub
+                    return null;
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        @Override
+        public void readFields(DataInput arg0) throws IOException {
+            // TODO Auto-generated method stub
+            
+        }
+        @Override
+        public void write(DataOutput arg0) throws IOException {
+            // TODO Auto-generated method stub
+        }
+	    
+	    
+	    
+	    
+	}
+	
+	public static class QWideReducer extends Reducer<QWideKeyWritable, VectorWritable, QWideKeyWritable, VectorWritable> { 
+	       
+	    private int                 m_kp;
+        private ArrayList<double[]> m_yLookahead;
+        private GivensThinSolver    m_qSolver;
+        private int                 m_blockCnt;
+        // private int m_reducerCount;
+        private int                 m_r;
+        private DenseBlockWritable  m_value = new DenseBlockWritable();
+        private QWideKeyWritable     m_key = new QWideKeyWritable();
+        private IntWritable         m_tempKey = new IntWritable();
+        private MultipleOutputs<QJobKeyWritable, Writable> m_outputs;
+        private LinkedList<Closeable> m_closeables = new LinkedList<Closeable>();
+        private SequenceFile.Writer m_tempQw;
+        private Path m_tempQPath;
+        private ArrayList<UpperTriangular> m_rSubseq = new ArrayList<UpperTriangular>();
+
+        private void flushSolver(Context context) throws IOException,
+                InterruptedException {
+            UpperTriangular r = m_qSolver.getRTilde();
+            double[][] qt = m_qSolver.getThinQtTilde();
+            m_qSolver = null;
+
+            m_rSubseq.add(new UpperTriangular(r));
+
+            m_value.setBlock(qt);
+            m_tempQw.append(m_tempKey, m_value); // this probably should be a
+                                                 // sparse row matrix,
+            // but compressor should get it for disk and in memory we want it
+            // dense anyway, sparse random implementations would be
+            // a mostly a memory management disaster consisting of rehashes and
+            // GC thrashing. (IMHO)
+            m_value.setBlock(null);
+        }
+
+        // second pass to run a modified version of computeQHatSequence.
+        private void flushQBlocks(Context ctx) throws IOException,
+                InterruptedException {
+            FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
+            SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs,
+                    m_tempQPath, ctx.getConfiguration());
+            m_closeables.addFirst(m_tempQr);
+            int qCnt = 0;
+            while (m_tempQr.next(m_tempKey, m_value)) {
+                m_value.setBlock(GivensThinSolver.computeQtHat(
+                        m_value.getBlock(),
+                        qCnt,
+                        new GivensThinSolver.DeepCopyUTIterator(m_rSubseq
+                                .iterator())));
+                if (qCnt == 1) // just merge r[0] <- r[1] so it doesn't have to
+                               // repeat in subsequent computeQHat iterators
+                    GivensThinSolver.mergeR(m_rSubseq.get(0),
+                            m_rSubseq.remove(1));
+
+                else
+                    qCnt++;
+                m_outputs.write(OUTPUT_QHAT, m_key, m_value);
+            }
+
+            assert m_rSubseq.size() == 1;
+
+            // m_value.setR(m_rSubseq.get(0));
+            m_outputs.write(OUTPUT_R, m_key, new VectorWritable(
+                    new DenseVector(m_rSubseq.get(0).getData(), true)));
+
+        }
+        @Override
+        @SuppressWarnings({"rawtypes","unchecked"})
+        protected void setup(final Context context) throws IOException,
+                InterruptedException {
+
+            int k = Integer.parseInt(context.getConfiguration().get(PROP_K));
+            int p = Integer.parseInt(context.getConfiguration().get(PROP_P));
+            m_r = Integer.parseInt(context.getConfiguration().get(PROP_AROWBLOCK_SIZE));
+            m_kp=k+p;
+            m_yLookahead=new ArrayList<double[]>(m_kp);
+            m_outputs=new MultipleOutputs(context);
+            m_closeables.addFirst(new Closeable() {
+                @Override
+                public void close() throws IOException {
+                    try { 
+                        m_outputs.close();
+                    } catch ( InterruptedException exc ) { 
+                        throw new IOException ( exc );
+                    }
+                }
+            });
+            
+            // temporary Q output 
+            // hopefully will not exceed size of IO cache in which case it is only good since it 
+            // is going to be maanged by kernel, not java GC. And if IO cache is not good enough, 
+            // then at least it is always sequential.
+            String taskTmpDir = System.getProperty("java.io.tmpdir");
+            FileSystem localFs=FileSystem.getLocal(context.getConfiguration());
+            m_tempQPath = new Path ( new Path ( taskTmpDir), "q-temp.seq");
+            m_tempQw=SequenceFile.createWriter(localFs, 
+                    context.getConfiguration(), 
+                    m_tempQPath, 
+                    IntWritable.class, 
+                    DenseBlockWritable.class,
+                    CompressionType.BLOCK );
+            m_closeables.addFirst(m_tempQw);
+            m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File( m_tempQw.toString())));
+            
+            context.getConfiguration().set(VectorWritable.PROP_PREPROCESSOR, YPreprocessor.class.getName());
+            
+        }
+
+        @Override
+        protected void cleanup(Context context) throws IOException,
+                InterruptedException {
+            try { 
+                if ( m_qSolver == null && m_yLookahead.size()==0 ) return; 
+                if ( m_qSolver == null ) m_qSolver = new GivensThinSolver (m_yLookahead.size(),m_kp);
+                // grow q solver up if necessary
+                
+                m_qSolver.adjust(m_qSolver.getCnt()+m_yLookahead.size());
+                while ( m_yLookahead.size()>0) { 
+                    
+                    m_qSolver.appendRow(m_yLookahead.remove(0));
+                    if ( m_qSolver.isFull()) { 
+                        flushSolver(context);
+                        m_blockCnt++;
+                    }
+                    
+                }
+                m_closeables.remove(m_tempQw);
+                m_tempQw.close();
+                flushQBlocks(context);
+                
+                
+            } finally {             
+                IOUtil.closeAll(m_closeables);
+            }
+
+        } 
+
+
+	}
+	
 	public static class QWidePartitioner extends Partitioner<QWideKeyWritable, VectorWritable> implements Configurable {
 
 	    int m_numMappers;
@@ -205,11 +430,7 @@ public class QJobWide {
         @Override
         public int getPartition(QWideKeyWritable key, VectorWritable value,
                 int numPartitions) {
-            // say we have 10 partitions and 100 mappers.
-            // then 0-9 will go to partition 0
-            // .. 
-            // 90-99 will go to partiton 9.
-            return key.m_taskId*numPartitions/m_numMappers;
+            return QJobWide.getPartition ( m_numMappers, numPartitions, key.m_taskId);
         }
 
         @Override
@@ -252,9 +473,10 @@ public class QJobWide {
 		
 		FileOutputFormat.setOutputPath(job, outputPath);
 		
-		MultipleOutputs.addNamedOutput(job, OUTPUT_QHAT,
-		        SequenceFileOutputFormat.class,
-		        QWideKeyWritable.class,DenseBlockWritable.class);
+//		MultipleOutputs.addNamedOutput(job, OUTPUT_QHAT,
+//		        SequenceFileOutputFormat.class,
+//		        QWideKeyWritable.class,DenseBlockWritable.class);
+		job.getConfiguration().set("mapreduce.output.basename", OUTPUT_QHAT);
 		MultipleOutputs.addNamedOutput(job, OUTPUT_R,
 		        SequenceFileOutputFormat.class,
 		        QWideKeyWritable.class, VectorWritable.class);
@@ -271,6 +493,7 @@ public class QJobWide {
 		
 		job.setMapperClass(QWideMapper.class);
 		job.setPartitionerClass(QWidePartitioner.class);
+		job.setReducerClass(QWideReducer.class);
 		
 		job.getConfiguration().setInt(PROP_AROWBLOCK_SIZE,aBlockRows );
 		job.getConfiguration().setLong(PROP_OMEGA_SEED, seed);
@@ -281,7 +504,7 @@ public class QJobWide {
 		// send anything to reducers. in fact, the only reason 
 		// we need to configure reduce step is so that combiners can fire.
 		// so reduce here is purely symbolic.
-		job.setNumReduceTasks(0 /*numReduceTasks*/);
+		job.setNumReduceTasks(numReduceTasks);
 		
 		job.submit();
 		job.waitForCompletion(false);
@@ -296,5 +519,13 @@ public class QJobWide {
 	public static enum QJobCntEnum { 
 		NUM_Q_BLOCKS;
 	}
+
+    public static int getPartition ( int numMapperTasks, int numPartitions, int forTaskId ) { 
+        // say we have 10 partitions and 100 mappers.
+        // then 0-9 will go to partition 0
+        // .. 
+        // 90-99 will go to partiton 9.
+        return forTaskId*numPartitions/numMapperTasks;
+    }
 	
 }
