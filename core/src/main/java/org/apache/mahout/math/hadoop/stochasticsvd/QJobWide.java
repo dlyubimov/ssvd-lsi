@@ -270,6 +270,7 @@ public class QJobWide {
 		job.setOutputValueClass(VectorWritable.class);
 		
 		job.setMapperClass(QWideMapper.class);
+		job.setPartitionerClass(QWidePartitioner.class);
 		
 		job.getConfiguration().setInt(PROP_AROWBLOCK_SIZE,aBlockRows );
 		job.getConfiguration().setLong(PROP_OMEGA_SEED, seed);

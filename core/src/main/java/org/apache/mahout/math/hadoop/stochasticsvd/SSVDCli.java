@@ -48,6 +48,7 @@ public class SSVDCli extends AbstractJob {
         addOption("computeU", "U", "compute U (true/false)", "true");
         addOption("computeV", "V", "compute V (true/false)", "true");
         addOption("reduceTasks", "t", "number of reduce tasks (where applicable)", "1");
+        addOption("wide","w", "enable wide input (>30k nonzero elements/row)","false");
         
         Map<String, String> pargs = parseArguments(args);
         String input = pargs.get("--input");
@@ -59,6 +60,7 @@ public class SSVDCli extends AbstractJob {
         int minSplitSize = Integer.parseInt(pargs.get("--minSplitSize"));
         boolean computeU = Boolean.parseBoolean(pargs.get("--computeU"));
         boolean computeV = Boolean.parseBoolean(pargs.get("--computeV"));
+        boolean wide = Boolean.parseBoolean(pargs.get("--wide"));
         int reduceTasks = Integer.parseInt("--reduceTasks");
         
         Configuration conf = getConf();
@@ -66,7 +68,7 @@ public class SSVDCli extends AbstractJob {
                 conf, 
                 new Path[] {new Path(input)}, 
                 new Path ( tempDir), 
-                r, k, p, reduceTasks);
+                r, k, p, reduceTasks, wide);
         solver.setMinSplitSize(minSplitSize);
         solver.setComputeU(computeU);
         solver.setComputeV(computeV);

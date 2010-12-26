@@ -81,6 +81,7 @@ public class SSVDSolver {
 	private    int             m_k, m_p;
 	private    int             m_reduceTasks; 
 	private    int             m_minSplitSize = -1;
+	private    boolean         m_wide;
 	
 	
 	/**
@@ -100,7 +101,7 @@ public class SSVDSolver {
 	 */
 	
 	public SSVDSolver(Configuration conf, Path[] inputPath, Path outputPath, 
-			int ablockRows, int k, int p, int reduceTasks) throws IOException {
+			int ablockRows, int k, int p, int reduceTasks, boolean wide) throws IOException {
 	    m_conf = conf; 
 	    m_inputPath = inputPath;
 	    m_outputPath = outputPath;
@@ -108,6 +109,7 @@ public class SSVDSolver {
 	    m_k = k; 
 	    m_p = p; 
 	    m_reduceTasks = reduceTasks;
+	    m_wide = wide;
 	}
 
 	/**
@@ -195,12 +197,17 @@ public class SSVDSolver {
 			Random rnd = new Random();
 			long seed = rnd.nextLong();
 	
-			
-			QJob.run(m_conf, m_inputPath, qPath,
-			        m_ablockRows,
-			        m_minSplitSize,
-			        m_k,m_p,seed,m_reduceTasks);
-			
+			if ( ! m_wide ) 
+			    QJob.run(m_conf, m_inputPath, qPath,
+    			        m_ablockRows,
+    			        m_minSplitSize,
+    			        m_k,m_p,seed,m_reduceTasks);
+			else 
+	             QJobWide.run(m_conf, m_inputPath, qPath,
+	                     m_ablockRows,
+	                     m_minSplitSize,
+	                     m_k,m_p,seed,m_reduceTasks);
+
 			BtJob.run(m_conf, m_inputPath, qPath, btPath, 
 			        m_minSplitSize,
 			        m_k, m_p, 
