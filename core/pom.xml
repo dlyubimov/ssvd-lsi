@@ -132,7 +132,8 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.hadoop</groupId>
+      <!-- groupId>org.apache.hadoop</groupId -->
+      <groupId>com.cloudera.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
     </dependency>
     
