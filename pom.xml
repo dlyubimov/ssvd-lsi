@@ -91,7 +91,7 @@
   <properties>
     <junit.version>4.7</junit.version>
     <lucene.version>3.0.2</lucene.version>
-    <hadoop.version>0.20.2+320</hadoop.version>
+    <hadoop.version>0.20.2-320</hadoop.version>
     <maven.clover.multiproject>true</maven.clover.multiproject>
     <collections.version>1.0</collections.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -129,6 +129,17 @@
         <enabled>true</enabled>
       </releases>
     </repository>
+    <repository>
+      <id>Cloudera Releases</id>
+      <url>https://repository.cloudera.com/content/repositories/releases/</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository>
+
   </repositories>
   <issueManagement>
     <system>Jira</system>
@@ -170,7 +181,8 @@
         <scope>test</scope>
       </dependency>
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
+        <!-- groupId>org.apache.hadoop</groupId -->
+        <groupId>com.cloudera.hadoop</groupId>
         <artifactId>hadoop-core</artifactId>
         <version>${hadoop.version}</version>
         <exclusions>
