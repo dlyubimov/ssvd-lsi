@@ -69,6 +69,10 @@ public class GivensThinSolver {
         }
         m_cnt = 0;
     }
+    
+    public void reset ( ) { 
+        m_cnt =0 ;
+    }
 
     public void solve(Matrix a) {
 
