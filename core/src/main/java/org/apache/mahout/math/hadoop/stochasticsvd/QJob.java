@@ -121,25 +121,38 @@ public class QJob {
 		private void flushSolver ( Context context ) throws IOException, InterruptedException { 
 			 UpperTriangular r = m_qSolver.getRTilde();
 			 double[][]qt = m_qSolver.getThinQtTilde();
-			 m_qSolver =null;
+			 
 
 			 m_rSubseq.add(new UpperTriangular(r));
 			 
 			 m_value.setBlock(qt);
-			 m_tempQw.append(m_tempKey, m_value); // this probably should be a sparse row matrix, 
+			 getTempQw(context).append(m_tempKey, m_value); // this probably should be a sparse row matrix, 
 			                         // but compressor should get it for disk and in memory we want it 
 			                         // dense anyway, sparse random implementations would be 
 			                         // a mostly a  memory management disaster consisting of rehashes and GC thrashing. (IMHO)
 			 m_value.setBlock(null);
+			 m_qSolver.reset();
 		}
 		
 		// second pass to run a modified version of computeQHatSequence.
 		private void flushQBlocks (Context ctx ) throws IOException, InterruptedException { 
-		    FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
-		    SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs, m_tempQPath, ctx.getConfiguration());
-		    m_closeables.addFirst(m_tempQr);
-		    int qCnt = 0; 
-		    while ( m_tempQr.next(m_tempKey,m_value)) { 
+		    if ( m_blockCnt==1 ) { 
+		        // only one block, no temp file, no second pass. should be the default mode
+		        // for efficiency in most cases. Sure mapper should be able to load 
+		        // the entire split in memory -- and we don't require even that.
+		        m_value.setBlock(m_qSolver.getThinQtTilde());
+		        m_outputs.write(OUTPUT_QHAT, m_key, m_value);
+		        m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_qSolver.getRTilde().getData(),true)));
+		        
+		    } else secondPass(ctx);
+		}
+		
+		private void secondPass ( Context ctx ) throws IOException, InterruptedException { 
+            FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
+            SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs, m_tempQPath, ctx.getConfiguration());
+            m_closeables.addFirst(m_tempQr);
+            int qCnt = 0; 
+            while ( m_tempQr.next(m_tempKey,m_value)) { 
                 m_value.setBlock(GivensThinSolver.computeQtHat(
                         m_value.getBlock(), qCnt, 
                         new GivensThinSolver.DeepCopyUTIterator(m_rSubseq.iterator())));
@@ -148,14 +161,13 @@ public class QJob {
                     
                 else qCnt++;
                 m_outputs.write(OUTPUT_QHAT, m_key, m_value);
-		    }
+            }
+            
+            assert m_rSubseq.size()==1;
+
+//          m_value.setR(m_rSubseq.get(0));
+            m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),true)));
 		    
-		    assert m_rSubseq.size()==1;
-
-//		    m_value.setR(m_rSubseq.get(0));
-	        m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),true)));
-	        
-
 		}
 
 		@Override
@@ -163,14 +175,15 @@ public class QJob {
 				Context context) throws IOException, InterruptedException {
 			double[] yRow=null;
 			if ( m_yLookahead.size()==m_kp) { 
-				 yRow= m_yLookahead.remove(0);
-				 if ( m_qSolver == null ) m_qSolver = new GivensThinSolver(m_r, m_kp);
-				 m_qSolver.appendRow(yRow);
-				 if ( m_qSolver.isFull()) { 
-					 
-					 flushSolver(context);
-					 m_blockCnt++;
-				 }
+                if ( m_qSolver.isFull()) { 
+                    
+                    flushSolver(context);
+                    m_blockCnt++;
+                    
+                }
+				yRow= m_yLookahead.remove(0);
+
+				m_qSolver.appendRow(yRow);
 			} else yRow = new double[m_kp];
 			m_omega.computeYRow(value.get(), yRow);
 			m_yLookahead.add(yRow);
@@ -188,6 +201,7 @@ public class QJob {
 			m_r = Integer.parseInt(context.getConfiguration().get(PROP_AROWBLOCK_SIZE));
 			m_omega = new Omega(omegaSeed, k, p);
 			m_yLookahead=new ArrayList<double[]>(m_kp);
+			m_qSolver = new GivensThinSolver(m_r, m_kp);
 			m_outputs=new MultipleOutputs(context);
 			m_closeables.addFirst(new Closeable() {
                 @Override
@@ -200,21 +214,6 @@ public class QJob {
                 }
             });
 			
-			// temporary Q output 
-			// hopefully will not exceed size of IO cache in which case it is only good since it 
-			// is going to be maanged by kernel, not java GC. And if IO cache is not good enough, 
-			// then at least it is always sequential.
-			String taskTmpDir = System.getProperty("java.io.tmpdir");
-			FileSystem localFs=FileSystem.getLocal(context.getConfiguration());
-			m_tempQPath = new Path ( new Path ( taskTmpDir), "q-temp.seq");
-			m_tempQw=SequenceFile.createWriter(localFs, 
-			        context.getConfiguration(), 
-			        m_tempQPath, 
-			        IntWritable.class, 
-			        DenseBlockWritable.class,
-			        CompressionType.BLOCK );
-			m_closeables.addFirst(m_tempQw);
-			m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File( m_tempQw.toString())));
 			
 			
 		}
@@ -231,14 +230,15 @@ public class QJob {
     			while ( m_yLookahead.size()>0) { 
     				
     				m_qSolver.appendRow(m_yLookahead.remove(0));
-    				if ( m_qSolver.isFull()) { 
-    					flushSolver(context);
-    					m_blockCnt++;
-    				}
     				
     			}
-    			m_closeables.remove(m_tempQw);
-    			m_tempQw.close();
+    			assert m_qSolver.isFull();
+    			if ( ++m_blockCnt>1 ) { 
+    			    flushSolver(context );
+    			    assert m_tempQw!= null;
+                    m_closeables.remove(m_tempQw);
+                    m_tempQw.close();
+    			}
     			flushQBlocks(context);
     			
     			
@@ -246,7 +246,28 @@ public class QJob {
 		        IOUtil.closeAll(m_closeables);
 		    }
 
-		} 
+		}
+		private SequenceFile.Writer getTempQw(Context context ) throws IOException  { 
+		    if ( m_tempQw == null ) { 
+	            // temporary Q output 
+	            // hopefully will not exceed size of IO cache in which case it is only good since it 
+	            // is going to be maanged by kernel, not java GC. And if IO cache is not good enough, 
+	            // then at least it is always sequential.
+	            String taskTmpDir = System.getProperty("java.io.tmpdir");
+	            FileSystem localFs=FileSystem.getLocal(context.getConfiguration());
+	            m_tempQPath = new Path ( new Path ( taskTmpDir), "q-temp.seq");
+	            m_tempQw=SequenceFile.createWriter(localFs, 
+	                    context.getConfiguration(), 
+	                    m_tempQPath, 
+	                    IntWritable.class, 
+	                    DenseBlockWritable.class,
+	                    CompressionType.BLOCK );
+	            m_closeables.addFirst(m_tempQw);
+	            m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File( m_tempQw.toString())));
+
+		    }
+		    return m_tempQw;
+		}
 	}
 	
 	
