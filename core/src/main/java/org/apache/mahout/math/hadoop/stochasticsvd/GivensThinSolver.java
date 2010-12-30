@@ -44,6 +44,7 @@ public class GivensThinSolver {
     private UpperTriangular m_rTilde;
     private TriangularRowView m_rTildeRowView, m_rTildeRowView2;
     private double[][] m_qt;
+    private int m_qtStartRow;
     private int m_m, m_n; // m-row cnt, n- column count, m>=n
     private int m_cnt;
     private double[] m_cs = new double[2];
@@ -160,7 +161,7 @@ public class GivensThinSolver {
                 givens(m_aRow[0], m_rTilde.getQuick(0, 0), m_cs);
                 applyGivensInPlace(m_cs[0], m_cs[1], m_aRowV,
                         m_rTildeRowView.setViewedRow(0), 0, m_n);
-                applyGivensInPlace(m_cs[0], m_cs[1], m_qtRow, m_qt[0], 0, m_m);
+                applyGivensInPlace(m_cs[0], m_cs[1], m_qtRow, _getQtRow(0), 0, m_m);
             }
 
             for (int i = 1; i < height; i++) {
@@ -170,19 +171,15 @@ public class GivensThinSolver {
                 applyGivensInPlace(m_cs[0], m_cs[1],
                         m_rTildeRowView2.setViewedRow(i - 1),
                         m_rTildeRowView.setViewedRow(i), i, m_n - i);
-                applyGivensInPlace(m_cs[0], m_cs[1], m_qt[i - 1], m_qt[i], 0,
+                applyGivensInPlace(m_cs[0], m_cs[1], _getQtRow(i - 1), _getQtRow(i), 0,
                         m_m);
-                // applyGivensInPlace(m_cs[0], m_cs[1], m_qtRowV, m_rTilde., i,
-                // m_n-i);
-                // applyGivensInPlace(m_cs[0],m_cs[1],m_qt[i], m_qt[i+1], 0,
-                // m_m);
             }
             // push qt and r-tilde 1 row down
             // just sqp the references to reduce GC churning
-            double[] swap = m_qt[m_n - 1];
-            System.arraycopy(m_qt, 0, m_qt, 1, m_n - 1);
-            m_qt[0] = m_qtRow;
-            m_qtRow = swap;
+            _pushQtDown();
+            double[] swap=_getQtRow(0);
+            _setQtRow(0,m_qtRow);
+            m_qtRow=swap;
 
             // triangular push -- obviously, less efficient than
             // just reference swap above -- but saves us some memory, cpu time
@@ -201,6 +198,17 @@ public class GivensThinSolver {
             m_cnt++;
         }
     }
+    
+    private double[] _getQtRow ( int row ) {
+        
+        return m_qt[(row+=m_qtStartRow)>=m_n?row-m_n:row];
+    }
+    private void _setQtRow ( int row, double[] qtRow ) { 
+        m_qt[(row+=m_qtStartRow)>=m_n?row-m_n:row]=qtRow;
+    }
+    private void _pushQtDown () {
+        m_qtStartRow=m_qtStartRow==0?m_n-1:m_qtStartRow-1;
+    }
 
     // warning: both of these return actually n+1 rows with the last one being
     // not interesting.
@@ -209,6 +217,13 @@ public class GivensThinSolver {
     }
 
     public double[][] getThinQtTilde() {
+        if ( m_qtStartRow!=0 ) { 
+            // rotate qt rows into place
+            double[][] qt=new double[m_n][]; // double[~500][], once per block, not a big deal.
+            System.arraycopy(m_qt, m_qtStartRow, qt, 0, m_n-m_qtStartRow);
+            System.arraycopy(m_qt, 0, qt,m_n-m_qtStartRow,m_qtStartRow);
+            return qt;
+        }
         return m_qt;
     }
 
