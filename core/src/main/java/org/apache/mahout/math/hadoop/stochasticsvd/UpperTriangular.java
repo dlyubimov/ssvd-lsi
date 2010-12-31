@@ -18,6 +18,7 @@
 package org.apache.mahout.math.hadoop.stochasticsvd;
 
 import org.apache.mahout.math.AbstractMatrix;
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 
@@ -43,8 +44,14 @@ public class UpperTriangular extends AbstractMatrix {
 	}
 	
 	public UpperTriangular ( Vector data ) { 
-	    this (data.size());
+        m_n=(int)Math.round((-1+Math.sqrt(1+8*data.size()))/2);
+        cardinality[0]=cardinality[1]=m_n;
+        m_values = new double[m_n*(m_n+1)/2];
 	    int n=data.size();
+//	    if ( data instanceof DenseVector ) 
+//	        ((DenseVector)data).
+	    // system.arraycopy would've been much faster, but this way it's a drag 
+	    // on B-t job.
 	    for ( int i = 0; i < n; i++ ) m_values[i]=data.getQuick(i);
 	}
 	
@@ -79,6 +86,11 @@ public class UpperTriangular extends AbstractMatrix {
 		for ( int i = row; i < m_n; i++ )
 			setQuick(row, i, other.get(i));
 		return this;
+	}
+	
+	public Matrix assignRow ( int row, double[] other ) { 
+	    System.arraycopy(other, row, m_values, getL(row, 0), m_n-row);
+	    return this;
 	}
 
 
