@@ -112,7 +112,8 @@ public class LocalSSVDSolverTest extends TestCase {
 				new Path[] { aPath }, 
 				svdOutPath,
 				ablockRows,k,p,
-				3);
+				3,
+				false);
 		ssvd.run();
 
 	    double[] stochasticSValues=ssvd.getSingularValues();
