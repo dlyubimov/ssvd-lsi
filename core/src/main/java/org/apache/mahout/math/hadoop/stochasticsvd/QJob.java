@@ -169,7 +169,7 @@ public class QJob {
 			 double[][]qt = m_qSolver.getThinQtTilde();
 			 
 
-			 m_rSubseq.add(new UpperTriangular(r));
+			 m_rSubseq.add(r);
 			 
 			 m_value.setBlock(qt);
 			 getTempQw(context).append(m_tempKey, m_value); // this probably should be a sparse row matrix, 
@@ -194,6 +194,7 @@ public class QJob {
 		}
 		
 		private void secondPass ( Context ctx ) throws IOException, InterruptedException { 
+		    m_qSolver=null; // release mem
             FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
             SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs, m_tempQPath, ctx.getConfiguration());
             m_closeables.addFirst(m_tempQr);
