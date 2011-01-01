@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
@@ -173,8 +174,10 @@ public class SSVDSolver {
 	public void run() throws IOException  {
 		
 		LinkedList<Closeable> closeables = new LinkedList<Closeable>();
-		try { 
-			FileSystem fs = FileSystem.get(m_conf);
+		try {
+		    Class<?extends Writable> labelType = _sniffInputLabelType(m_inputPath, m_conf, closeables);
+		    FileSystem fs = FileSystem.get(m_conf);
+		    
 			
 			Path qPath = new Path(m_outputPath, "Q-job");
 			Path btPath = new Path ( m_outputPath, "Bt-job" );
@@ -196,15 +199,24 @@ public class SSVDSolver {
 			long seed = rnd.nextLong();
 	
 			
-			QJob.run(m_conf, m_inputPath, qPath,
+			
+			QJob.run(m_conf,
+			        m_inputPath, 
+			        qPath,
 			        m_ablockRows,
 			        m_minSplitSize,
 			        m_k,m_p,seed,m_reduceTasks);
 			
-			BtJob.run(m_conf, m_inputPath, qPath, btPath, 
+			BtJob.run(
+			        m_conf, 
+			        m_inputPath, 
+			        qPath, 
+			        btPath, 
 			        m_minSplitSize,
 			        m_k, m_p, 
-			        m_reduceTasks);
+			        m_reduceTasks,
+			        labelType
+			        );
 			
 			BBtJob.run(m_conf,new Path( btPath, 
 			        BtJob.OUTPUT_Bt+"-*"), 
@@ -278,7 +290,8 @@ public class SSVDSolver {
 			        uHatPath, 
 			        uPath, 
 			        m_k,
-			        m_reduceTasks); // actually this is map-only job anyway
+			        m_reduceTasks,
+			        labelType); // actually this is map-only job anyway
 			
 			if ( m_computeV ) (vjob=new VJob()).start ( 
 			        m_conf, 
@@ -309,6 +322,26 @@ public class SSVDSolver {
 			IOUtil.closeAll(closeables);
 		}
 		
+	}
+	
+	private  static Class<?extends Writable> _sniffInputLabelType ( 
+	        Path[] inputPath, Configuration conf, LinkedList<Closeable> closeables ) throws IOException { 
+	    FileSystem fs = FileSystem.get(conf);
+	    for ( Path p:inputPath) { 
+	        FileStatus fstats[]=fs.globStatus(p);
+	        if ( fstats==null||fstats.length==0 ) continue; 
+	        SequenceFile.Reader r= new SequenceFile.Reader(fs, fstats[0].getPath(), conf);
+	        closeables.addFirst(r);
+	        
+	        try { 
+	            return r.getKeyClass().asSubclass(Writable.class);
+	        } finally { 
+	            closeables.remove(r);
+	            r.close();
+	        }
+	    }
+	    
+	    throw new IOException ("Unable to open input files to determine input label type.");
 	}
 	
 	

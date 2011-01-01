@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -55,7 +56,8 @@ public class UJob {
             Path inputUHatPath,
             Path outputPath,
             int k,
-            int numReduceTasks  ) 
+            int numReduceTasks, 
+            Class<?extends Writable> labelClass ) 
     throws ClassNotFoundException, InterruptedException, IOException {
         
         m_job=new Job(conf);
@@ -78,7 +80,7 @@ public class UJob {
         m_job.setMapOutputKeyClass(IntWritable.class);
         m_job.setMapOutputValueClass(VectorWritable.class);
         
-        m_job.setOutputKeyClass(IntWritable.class);
+        m_job.setOutputKeyClass(labelClass);
         m_job.setOutputValueClass(VectorWritable.class);
                 
         m_job.getConfiguration().set(PROP_UHAT_PATH, inputUHatPath.toString());
@@ -96,7 +98,7 @@ public class UJob {
         
     }
     
-    public static final class UMapper extends Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
+    public static final class UMapper extends Mapper<Writable, VectorWritable, Writable, VectorWritable> {
 
         private Matrix m_uHat;
         private DenseVector    m_uRow;
@@ -105,7 +107,7 @@ public class UJob {
         private int             m_k;
         
         @Override
-        protected void map(IntWritable key, VectorWritable value,
+        protected void map(Writable key, VectorWritable value,
                 Context context) throws IOException, InterruptedException {
             Vector qRow = value.get();
             for ( int i = 0; i < m_k; i++ ) 
