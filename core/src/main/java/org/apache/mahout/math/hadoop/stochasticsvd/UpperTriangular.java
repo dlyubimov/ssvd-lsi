@@ -18,7 +18,6 @@
 package org.apache.mahout.math.hadoop.stochasticsvd;
 
 import org.apache.mahout.math.AbstractMatrix;
-import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 

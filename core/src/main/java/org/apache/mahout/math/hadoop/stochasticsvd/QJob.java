@@ -146,8 +146,7 @@ public class QJob {
 	    
 	}
 	
-	public static class QMapper extends Mapper<IntWritable, VectorWritable, QJobKeyWritable, VectorWritable> {
-
+	public static class QMapper extends Mapper<Writable, VectorWritable, QJobKeyWritable, VectorWritable> {
 	    	    
 		private int 				m_kp;
 		private ArrayList<double[]> m_yLookahead;
@@ -218,7 +217,7 @@ public class QJob {
 		}
 
 		@Override
-		protected void map(IntWritable key, VectorWritable value,
+		protected void map(Writable key, VectorWritable value,
 				Context context) throws IOException, InterruptedException {
 			double[] yRow=null;
 			if ( m_yLookahead.size()==m_kp) { 
