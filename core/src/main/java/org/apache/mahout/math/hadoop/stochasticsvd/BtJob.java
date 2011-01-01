@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -53,7 +54,8 @@ public class BtJob {
 
     	
     
-	public static class BtMapper extends Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
+    
+	public static class BtMapper extends Mapper<Writable, VectorWritable, IntWritable, VectorWritable> {
 
         private SequenceFile.Reader m_qInput;
         private ArrayList<UpperTriangular> m_Rs = new ArrayList<UpperTriangular>();
@@ -112,7 +114,7 @@ public class BtJob {
         }
 
         @Override
-        protected void map(IntWritable key, VectorWritable value,
+        protected void map(Writable key, VectorWritable value,
                 Context context)
                 throws IOException, InterruptedException {
             if ( m_qt != null && m_cnt++==m_r ) m_qt=null;
@@ -215,7 +217,8 @@ public class BtJob {
             int minSplitSize,
             int k,
             int p,
-            int numReduceTasks  ) 
+            int numReduceTasks,
+            Class<? extends Writable> labelClass ) 
     throws ClassNotFoundException, InterruptedException, IOException {
         
         Job job=new Job(conf);
@@ -237,7 +240,8 @@ public class BtJob {
 //                QJobKeyWritable.class,QJobValueWritable.class);
         MultipleOutputs.addNamedOutput(job, OUTPUT_Q,
                 SequenceFileOutputFormat.class,
-                IntWritable.class, VectorWritable.class);
+                labelClass, 
+                VectorWritable.class);
         
         //Warn: tight hadoop integration here:
         job.getConfiguration().set("mapreduce.output.basename", OUTPUT_Bt);
