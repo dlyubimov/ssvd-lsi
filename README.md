@@ -132,41 +132,7 @@ and k,p parameters it is expected to be able to process 1 billion rows or more w
 1 million dense (i.e. non-zero) data elements. However, network IO deficiencies will start to occur much sooner 
 as discussed in the p. 6.1 of the working notes (this is one of TODOs).
 
-
-for usage run 
-    mahout ssvd 
-
-Options : 
-    -k, --rank <int-value> the requested SVD rank (minimum number of singular values and dimensions in U, V matrices)
-    -p, --oversampling <int-value> stochastic SVD oversampling. (k+p=500 is probably more than reasonable).
-    -r, --blockHeight <int-value> the number of rows of source matrix for block computations. Taller blocking 
-        causes more memory use but produces less blocks and therefore somewhat better running times. However 
-	if blocks too tall, the algorithm may not be able to form them in the mapper in which case 
- 	the split size may need to be increased with --minSplitSize (but overshoots over standard size are 
- 	detrimental to network IO)
-    -s, --minSplitSize <int-value> the minimum split size to use in mappers. Since in this branch block 
- 	formation happens in mappers, for significantly large -r and width of the input matrix the algorithm 
-	may not be able to read minimum k+p rows and form a block of minimum height, so the job would 
-	bail out at the very first mapping step. If that is the case, then one of the recourses available 
-	is to force increase in the MapReduce split size using SequenceFileInputFormat.setMinSplitSize() property.
-	Increasing this significantly over HDFS size will result in network IO overhead as discussed in p.6.2 
-	of the [working notes](https://github.com/dlyubimov/ssvd-doc/blob/master/SSVD%20working%20notes.pdf).
-    --computeU <true|false> Request computation of the U matrix (default true)
-    --computeV <true|false> Request computation of the V matrix (default true)
-    --reduceTasks <int-value> The number of reducers to use (where applicable): depends on size of the 
-	hadoop cluster.
-
-Standard Options; 
-    --input <glob> HDFS glob specification where the DistributedRowMatrix input to be found
-    --output <hdfs-dir> non-existent hdfs directory where to output U,V and Sigma (singular values) files. 
-    --tempDir <temp-dir> temporary dir where to store intermediate files (cleaned up upon normal completion). 
-	This is a standard Mahout optional parameter.
-
-Output 
-    Singular values are output as a single-record Sequence File containing a dense vector with k singular values.
-    U and V matrices are k-wide dense DistributedRowMatrix files. U matrix inherits row labels of the input 
-    matrix. 
-
+for usage see [cli and scaling notes](https://github.com/dlyubimov/ssvd-lsi/raw/doc/SSVD-scaling%20notes.pdf)
     
 
 
