@@ -46,7 +46,9 @@ public class SSVDCli extends AbstractJob {
         addOption("blockHeight", "r", "Y block height (must be > (k+p))", true);
         addOption("minSplitSize", "s", "minimum split size","-1");
         addOption("computeU", "U", "compute U (true/false)", "true");
+        addOption("uHalfSigma", "uhs", "Compute U as UHat=U x pow(Sigma,0.5)", "false");
         addOption("computeV", "V", "compute V (true/false)", "true");
+        addOption("vHalfSigma", "vhs", "compute V as VHat= V x pow(Sigma,0.5)", "false");
         addOption("reduceTasks", "t", "number of reduce tasks (where applicable)", "1");
         addOption("wide","w", "enable wide input (>30k nonzero elements/row)","false");
         
@@ -61,6 +63,8 @@ public class SSVDCli extends AbstractJob {
         boolean computeU = Boolean.parseBoolean(pargs.get("--computeU"));
         boolean computeV = Boolean.parseBoolean(pargs.get("--computeV"));
         boolean wide = Boolean.parseBoolean(pargs.get("--wide"));
+        boolean cUHalfSigma= Boolean.parseBoolean(pargs.get("--uHalfSigma"));
+        boolean cVHalfSigma= Boolean.parseBoolean(pargs.get("--vHalfSigma"));
         int reduceTasks = Integer.parseInt("--reduceTasks");
         
         Configuration conf = getConf();
@@ -72,6 +76,8 @@ public class SSVDCli extends AbstractJob {
         solver.setMinSplitSize(minSplitSize);
         solver.setComputeU(computeU);
         solver.setComputeV(computeV);
+        solver.setcUHalfSigma(cUHalfSigma);
+        solver.setcVHalfSigma(cVHalfSigma);
         
         solver.run();
         
