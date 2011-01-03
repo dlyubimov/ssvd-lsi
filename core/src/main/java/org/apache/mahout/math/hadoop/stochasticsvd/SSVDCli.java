@@ -25,6 +25,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.common.AbstractJob;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorWritable;
@@ -52,6 +53,8 @@ public class SSVDCli extends AbstractJob {
         addOption("reduceTasks", "t", "number of reduce tasks (where applicable)", "1");
         
         Map<String, String> pargs = parseArguments(args);
+        if ( pargs == null ) return -1;
+        
         String input = pargs.get("--input");
         String output = pargs.get("--output");
         String tempDir = pargs.get("--tempDir");
@@ -107,6 +110,10 @@ public class SSVDCli extends AbstractJob {
             
         }
         return 0;
+    }
+    
+    public static void  main(String[] args) throws Exception {
+   		ToolRunner.run(new SSVDCli(), args);
     }
 
 }

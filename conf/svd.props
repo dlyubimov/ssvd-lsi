@@ -1,6 +1,13 @@
 #i|input =
 #o|output =
-#nr|numRows =
-#nc|numCols =
-#r|rank =
+#k|rank =
 #t|tempDir = 
+#p|oversampling = 
+#r|blockHeight = 
+#s|minSplitSize = 
+#U|computeU = 
+#uhs|uHalfSigma = 
+#V|computeV = 
+#vhs|vHalfSigma = 
+#t|reduceTasks = 
+#w|wide = 
