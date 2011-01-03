@@ -117,6 +117,7 @@ public class SSVDSolver {
 
 	
 	
+    
     public void setcUHalfSigma(boolean cUHat) {
         this.m_cUHalfSigma = cUHat;
     }
@@ -358,7 +359,6 @@ public class SSVDSolver {
 	    
 	    throw new IOException ("Unable to open input files to determine input label type.");
 	}
-	
 	
 	
     private static final Pattern s_outputFilePattern = Pattern.compile("(\\w+)-(m|r)-(\\d+)(\\.\\w+)?");
