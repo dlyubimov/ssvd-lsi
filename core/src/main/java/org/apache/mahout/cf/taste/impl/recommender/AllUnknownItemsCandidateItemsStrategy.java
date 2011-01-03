@@ -17,26 +17,24 @@
 
 package org.apache.mahout.cf.taste.impl.recommender;
 
-import org.apache.mahout.cf.taste.recommender.CandidateItemsStrategy;
 import org.apache.mahout.cf.taste.common.TasteException;
 import org.apache.mahout.cf.taste.impl.common.FastIDSet;
 import org.apache.mahout.cf.taste.impl.common.LongPrimitiveIterator;
 import org.apache.mahout.cf.taste.model.DataModel;
 
-/**
- * returns all items the user has not rated yet
- */
-public final class AllUnknownItemsCandidateItemsStrategy implements CandidateItemsStrategy {
+public final class AllUnknownItemsCandidateItemsStrategy extends AbstractCandidateItemsStrategy {
 
+  /**
+   * return all items the user has not yet seen
+   */
   @Override
-  public FastIDSet getCandidateItems(long userID, DataModel dataModel) throws TasteException {
+  protected FastIDSet doGetCandidateItems(FastIDSet preferredItemIDs, DataModel dataModel) throws TasteException {
     FastIDSet possibleItemIDs = new FastIDSet(dataModel.getNumItems());
     LongPrimitiveIterator allItemIDs = dataModel.getItemIDs();
     while (allItemIDs.hasNext()) {
       possibleItemIDs.add(allItemIDs.nextLong());
     }
-    possibleItemIDs.removeAll(dataModel.getItemIDsFromUser(userID));
+    possibleItemIDs.removeAll(preferredItemIDs);
     return possibleItemIDs;
   }
-
 }

@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math.hadoop;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -45,7 +46,7 @@ public class MatrixMultiplicationJob extends AbstractJob {
 
   private static final String OUT_CARD = "output.vector.cardinality";
 
-  public static JobConf createMatrixMultiplyJobConf(Path aPath, Path bPath, Path outPath, int outCardinality) {
+  public static Configuration createMatrixMultiplyJobConf(Path aPath, Path bPath, Path outPath, int outCardinality) {
     JobConf conf = new JobConf(MatrixMultiplicationJob.class);
     conf.setInputFormat(CompositeInputFormat.class);
     conf.set("mapred.join.expr", CompositeInputFormat.compose(
@@ -91,8 +92,8 @@ public class MatrixMultiplicationJob extends AbstractJob {
                                                       Integer.parseInt(argMap.get("--numRowsB")),
                                                       Integer.parseInt(argMap.get("--numColsB")));
 
-    a.configure(new JobConf(getConf()));
-    b.configure(new JobConf(getConf()));
+    a.setConf(new Configuration(getConf()));
+    b.setConf(new Configuration(getConf()));
 
     //DistributedRowMatrix c = a.times(b);
     a.times(b);
