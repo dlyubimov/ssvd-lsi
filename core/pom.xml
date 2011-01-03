@@ -136,6 +136,11 @@
       <groupId>com.cloudera.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.codehaus.jackson</groupId>
+      <artifactId>jackson-mapper-asl</artifactId>
+    </dependency>
+    
     
     <!--  MR tests in local mode seem to require this -->
     <dependency>
