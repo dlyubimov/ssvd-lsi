@@ -39,7 +39,7 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 
 /**
- * Computes U=Q*Uhat of SSVD
+ * Computes U=Q*Uhat of SSVD (optionally adding x pow(Sigma, 0.5) )
  * 
  * @author Dmitriy
  *
@@ -47,6 +47,8 @@ import org.apache.mahout.math.VectorWritable;
 public class UJob {
     private static final String     OUTPUT_U = "u";
     private static final String     PROP_UHAT_PATH = "ssvd.uhat.path";
+    private static final String     PROP_SIGMA_PATH= "ssvd.sigma.path";
+    private static final String     PROP_U_HALFSIGMA="ssvd.u.halfsigma";
     private static final String     PROP_K = "ssvd.k";
     
     private Job         m_job;
@@ -54,10 +56,12 @@ public class UJob {
     public void start ( Configuration conf, 
             Path inputPathQ,
             Path inputUHatPath,
+            Path sigmaPath,
             Path outputPath,
             int k,
             int numReduceTasks, 
-            Class<?extends Writable> labelClass ) 
+            Class<?extends Writable> labelClass,
+            boolean uHalfSigma) 
     throws ClassNotFoundException, InterruptedException, IOException {
         
         m_job=new Job(conf);
@@ -77,6 +81,7 @@ public class UJob {
         SequenceFileOutputFormat.setOutputCompressorClass(m_job, DefaultCodec.class);
         SequenceFileOutputFormat.setOutputCompressionType(m_job, CompressionType.BLOCK);
         
+        m_job.setMapperClass(UMapper.class);
         m_job.setMapOutputKeyClass(IntWritable.class);
         m_job.setMapOutputValueClass(VectorWritable.class);
         
@@ -84,6 +89,9 @@ public class UJob {
         m_job.setOutputValueClass(VectorWritable.class);
                 
         m_job.getConfiguration().set(PROP_UHAT_PATH, inputUHatPath.toString());
+        m_job.getConfiguration().set(PROP_SIGMA_PATH, sigmaPath.toString());
+        if ( uHalfSigma)
+            m_job.getConfiguration().set(PROP_U_HALFSIGMA,"y");
         m_job.getConfiguration().setInt(PROP_K, k);
         m_job.setNumReduceTasks(0);
         m_job.submit();
@@ -105,13 +113,18 @@ public class UJob {
         private VectorWritable m_uRowWritable;
         private int             m_kp;
         private int             m_k;
+        private Vector          m_sValues;
         
         @Override
         protected void map(Writable key, VectorWritable value,
                 Context context) throws IOException, InterruptedException {
             Vector qRow = value.get();
-            for ( int i = 0; i < m_k; i++ ) 
+            if ( m_sValues!=null ) 
+                for ( int i = 0; i < m_k; i++ ) 
+                    m_uRow.setQuick(i,qRow.dot(m_uHat.getColumn(i))*m_sValues.getQuick(i));
+            else for ( int i = 0; i < m_k; i++ ) 
                 m_uRow.setQuick(i, qRow.dot(m_uHat.getColumn(i)));
+            
             context.write(key, m_uRowWritable); // U inherits original A row labels.
         }
 
@@ -121,13 +134,21 @@ public class UJob {
             super.setup(context);
             FileSystem fs = FileSystem.get(context.getConfiguration());
             Path uHatPath = new Path ( context.getConfiguration().get(PROP_UHAT_PATH));
+            Path sigmaPath = new Path ( context.getConfiguration().get(PROP_SIGMA_PATH));
+
             m_uHat = new DenseMatrix ( SSVDSolver.loadDistributedRowMatrix(fs, uHatPath, context.getConfiguration()));
             // since uHat is (k+p) x (k+p)
             m_kp = m_uHat.columnSize();
             m_k=context.getConfiguration().getInt(PROP_K,m_kp);
             m_uRow = new DenseVector ( m_k);
             m_uRowWritable = new VectorWritable(m_uRow);
-            
+
+            if ( context.getConfiguration().get(PROP_U_HALFSIGMA)!=null) { 
+                m_sValues = new DenseVector ( SSVDSolver.loadDistributedRowMatrix(fs, sigmaPath, context.getConfiguration())[0],true);
+                for ( int i =0; i < m_k; i++ ) 
+                    m_sValues.setQuick(i, Math.sqrt(m_sValues.getQuick(i)));
+            }
+
         } 
         
     }
