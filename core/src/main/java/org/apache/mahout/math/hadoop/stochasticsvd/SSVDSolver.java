@@ -82,6 +82,8 @@ public class SSVDSolver {
 	private    int             m_k, m_p;
 	private    int             m_reduceTasks; 
 	private    int             m_minSplitSize = -1;
+	private    boolean         m_cUHalfSigma=false;
+	private    boolean         m_cVHalfSigma=false;
 	
 	
 	/**
@@ -111,10 +113,19 @@ public class SSVDSolver {
 	    m_reduceTasks = reduceTasks;
 	}
 
-	/**
+	
+	
+    public void setcUHalfSigma(boolean cUHat) {
+        this.m_cUHalfSigma = cUHat;
+    }
+
+    public void setcVHalfSigma(boolean cVHat) {
+        this.m_cVHalfSigma = cVHat;
+    }
+
+    /**
 	 * The setting controlling whether to compute U matrix of low rank SSVD.
 	 * 
-	 * @param val true if we want to output U matrix. Defualt is true. 
 	 */
 	public void setComputeU(boolean val ) { 
 	    m_computeU = val; 
@@ -197,8 +208,6 @@ public class SSVDSolver {
 			
 			Random rnd = new Random();
 			long seed = rnd.nextLong();
-	
-			
 			
 			QJob.run(m_conf,
 			        m_inputPath, 
@@ -222,10 +231,8 @@ public class SSVDSolver {
 			        BtJob.OUTPUT_Bt+"-*"), 
 			        bbtPath, 1);
 			
-			
 			double[][] bbt=loadDistributedRowMatrix(fs, 
 			        new Path(bbtPath,BBtJob.OUTPUT_BBt+"-*"), m_conf);
-			
 			
 			// make sure it is symmetric exactly. sometimes the commons math package detects 
 			// rounding error and barfs at it. 
@@ -248,12 +255,11 @@ public class SSVDSolver {
 			fs.mkdirs(uHatPath);
 			SequenceFile.Writer uHatWriter = SequenceFile.createWriter(
 			        fs, m_conf, 
-			        new Path ( uHatPath, "uhat.seq"),
+			        uHatPath=new Path ( uHatPath, "uhat.seq"),
 			        IntWritable.class,
 			        VectorWritable.class,
 			        CompressionType.BLOCK );
 			closeables.addFirst(uHatWriter);
-			
 			
 		    int m=uHatrm.getRowDimension();
 		    IntWritable iw = new IntWritable(); 
@@ -269,7 +275,7 @@ public class SSVDSolver {
 			
             SequenceFile.Writer svWriter = SequenceFile.createWriter(
                     fs, m_conf, 
-                    new Path ( svPath, "svalues.seq"),
+                    svPath = new Path ( svPath, "svalues.seq"),
                     IntWritable.class,
                     VectorWritable.class,
                     CompressionType.BLOCK );
@@ -287,11 +293,14 @@ public class SSVDSolver {
 			if ( m_computeU ) (ujob= new UJob() ).start(
 			        m_conf, 
 			        new Path(btPath,BtJob.OUTPUT_Q+"-*"), 
-			        uHatPath, 
+			        uHatPath,
+			        svPath,
 			        uPath, 
 			        m_k,
 			        m_reduceTasks,
-			        labelType); // actually this is map-only job anyway
+			        labelType,
+			        m_cUHalfSigma
+			         ); // actually this is map-only job anyway
 			
 			if ( m_computeV ) (vjob=new VJob()).start ( 
 			        m_conf, 
@@ -300,7 +309,8 @@ public class SSVDSolver {
 			        svPath,
 			        vPath,
 			        m_k,
-			        m_reduceTasks
+			        m_reduceTasks,
+			        m_cVHalfSigma
 			        );
 			
 			if ( ujob != null ) { 
