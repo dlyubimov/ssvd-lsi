@@ -143,11 +143,11 @@ public class LocalSSVDSolverTest extends TestCase {
 		SSVDPrototypeTest.assertOrthonormality(new DenseMatrix(q), false,s_epsilon);
 		
         double[][] u=  SSVDSolver.loadDistributedRowMatrix(fs, 
-                new Path ( svdOutPath, "U/*"), conf);
+                new Path ( svdOutPath, "U/[^_]*"), conf);
         
         SSVDPrototypeTest.assertOrthonormality(new DenseMatrix(u), false,s_epsilon);
         double[][] v=  SSVDSolver.loadDistributedRowMatrix(fs, 
-                new Path ( svdOutPath, "V/*"), conf);
+                new Path ( svdOutPath, "V/[^_]*"), conf);
         
         SSVDPrototypeTest.assertOrthonormality(new DenseMatrix(v), false,s_epsilon);
 	}

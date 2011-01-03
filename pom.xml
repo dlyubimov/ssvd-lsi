@@ -91,7 +91,8 @@
   <properties>
     <junit.version>4.7</junit.version>
     <lucene.version>3.0.2</lucene.version>
-    <hadoop.version>0.20.2-320</hadoop.version>
+    <hadoop.version>0.20.2-737</hadoop.version>
+    <jackson.version>1.0.1</jackson.version>
     <maven.clover.multiproject>true</maven.clover.multiproject>
     <collections.version>1.0</collections.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -251,6 +252,12 @@
             <artifactId>core</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <!-- CDH3b3 requires this even though it doesn't declare it in its pom. Strange. -->
+      <dependency>
+      	<groupId>org.codehaus.jackson</groupId>
+      	<artifactId>jackson-mapper-asl</artifactId>
+      	<version>${jackson.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
