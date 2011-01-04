@@ -188,22 +188,25 @@ public class BtJob {
         } 
 	}
 	
-
-
 	public static class OuterProductReducer extends Reducer<IntWritable, VectorWritable, IntWritable, VectorWritable> {
 	    
 	    private VectorWritable m_oValue = new VectorWritable();
+	    private DenseVector m_accum;
 
         @Override
         protected void reduce(IntWritable key, Iterable<VectorWritable> values,
                 Context ctx)
                 throws IOException, InterruptedException {
             Iterator<VectorWritable> vwIter= values.iterator();
-            DenseVector accum=new DenseVector(vwIter.next().get()); // so it will reallocate 
-                                                              // for each iteration... ideally we may want
-                                                              // to optimize that a little to prevent GC thrashing
-            while ( vwIter.hasNext()) accum.addAll(vwIter.next().get());
-            m_oValue.set(accum);
+            
+            Vector vec = vwIter.next().get();
+            if ( m_accum == null|| m_accum.size()!= vec.size()) {  
+                m_accum=new DenseVector (vec);
+                m_oValue.set(m_accum);
+            }
+            else m_accum.assign(vec);
+            
+            while ( vwIter.hasNext()) m_accum.addAll(vwIter.next().get());
             ctx.write(key,m_oValue);
         } 
 	    
