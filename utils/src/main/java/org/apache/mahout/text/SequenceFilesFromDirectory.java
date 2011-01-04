@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
 import org.apache.commons.cli2.CommandLine;
 import org.apache.commons.cli2.Group;
@@ -39,6 +40,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.util.ToolRunner;
+import org.apache.mahout.common.AbstractJob;
 import org.apache.mahout.common.CommandLineUtil;
 import org.apache.mahout.common.FileLineIterable;
 import org.slf4j.Logger;
@@ -53,14 +56,14 @@ import org.slf4j.LoggerFactory;
  * 
  * 
  */
-public final class SequenceFilesFromDirectory {
+public class SequenceFilesFromDirectory extends AbstractJob  {
   
   private static final Logger log = LoggerFactory.getLogger(SequenceFilesFromDirectory.class);
   
-  private static ChunkedWriter createNewChunkedWriter(int chunkSizeInMB, String outputDir) throws IOException {
-    return new ChunkedWriter(chunkSizeInMB, outputDir);
+  private ChunkedWriter createNewChunkedWriter(int chunkSizeInMB, String outputDir) throws IOException {
+    return new ChunkedWriter(chunkSizeInMB, outputDir, getConf());
   }
-  
+
   public void createSequenceFiles(File parentDir,
                                   String outputDir,
                                   String prefix,
@@ -85,10 +88,11 @@ public final class SequenceFilesFromDirectory {
     private SequenceFile.Writer writer;
     private int currentChunkID;
     private int currentChunkSize;
-    private final Configuration conf = new Configuration();
+    private final Configuration conf ;
     private final FileSystem fs;
     
-    public ChunkedWriter(int chunkSizeInMB, String outputDir) throws IOException {
+    public ChunkedWriter(int chunkSizeInMB, String outputDir, Configuration conf) throws IOException {
+      this.conf=conf;
       if (chunkSizeInMB > 1984) {
         chunkSizeInMB = 1984;
       }
@@ -159,8 +163,10 @@ public final class SequenceFilesFromDirectory {
     
   }
   
-  public static void main(String[] args) throws Exception {
-    DefaultOptionBuilder obuilder = new DefaultOptionBuilder();
+  @Override
+  public int run(String[] args) throws Exception {
+      
+	DefaultOptionBuilder obuilder = new DefaultOptionBuilder();
     ArgumentBuilder abuilder = new ArgumentBuilder();
     GroupBuilder gbuilder = new GroupBuilder();
     
@@ -195,13 +201,14 @@ public final class SequenceFilesFromDirectory {
       charsetOpt).withOption(outputDirOpt).withOption(fileFilterOpt).withOption(helpOpt).withOption(parentOpt).create();
     
     try {
+      
       Parser parser = new Parser();
       parser.setGroup(group);
       parser.setHelpOption(helpOpt);
       CommandLine cmdLine = parser.parse(args);
       if (cmdLine.hasOption(helpOpt)) {
         CommandLineUtil.printHelp(group);
-        return;
+        return -1;
       }
       File parentDir = new File((String) cmdLine.getValue(parentOpt));
       String outputDir = (String) cmdLine.getValue(outputDirOpt);
@@ -222,12 +229,19 @@ public final class SequenceFilesFromDirectory {
       }
 
       Charset charset = Charset.forName((String) cmdLine.getValue(charsetOpt));
-      SequenceFilesFromDirectory dir = new SequenceFilesFromDirectory();
-      
-      dir.createSequenceFiles(parentDir, outputDir, prefix, chunkSize, charset, filter);
+
+      createSequenceFiles(parentDir, outputDir, prefix, chunkSize, charset, filter);
+      return 0;
     } catch (OptionException e) {
       log.error("Exception", e);
       CommandLineUtil.printHelp(group);
+      return -1;
     }
   }
+  
+  public static int main ( String[] args ) throws Exception { 
+	  return ToolRunner.run(new SequenceFilesFromDirectory(), args );
+  }
+  
+  
 }
