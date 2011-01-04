@@ -223,7 +223,7 @@ public class BtJob {
         
         Job job=new Job(conf);
         job.setJobName("Bt-job");
-        job.setJarByClass(QJob.class);
+        job.setJarByClass(BtJob.class);
         
         
         job.setInputFormatClass(SequenceFileInputFormat.class);
