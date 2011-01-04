@@ -16,6 +16,7 @@
 
 package org.apache.mahout.math.hadoop.stochasticsvd;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -66,9 +67,11 @@ public class SSVDCli extends AbstractJob {
         boolean computeV = Boolean.parseBoolean(pargs.get("--computeV"));
         boolean cUHalfSigma= Boolean.parseBoolean(pargs.get("--uHalfSigma"));
         boolean cVHalfSigma= Boolean.parseBoolean(pargs.get("--vHalfSigma"));
-        int reduceTasks = Integer.parseInt("--reduceTasks");
+        int reduceTasks = Integer.parseInt(pargs.get("--reduceTasks"));
         
         Configuration conf = getConf();
+        if ( conf == null ) throw new IOException("No Hadoop configuration present");
+        
         SSVDSolver solver = new SSVDSolver(
                 conf, 
                 new Path[] {new Path(input)}, 
@@ -112,8 +115,8 @@ public class SSVDCli extends AbstractJob {
         return 0;
     }
     
-    public static void  main(String[] args) throws Exception {
-   		ToolRunner.run(new SSVDCli(), args);
+    public static int  main(String[] args) throws Exception {
+   		return ToolRunner.run(new SSVDCli(), args);
     }
 
 }
