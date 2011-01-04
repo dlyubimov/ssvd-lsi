@@ -50,6 +50,8 @@ public class BBtJob {
 		
 		Job job = new Job(conf);
 		job.setJobName("BBt-job");
+        job.setJarByClass(BBtJob.class);
+
 	
 		// input 
 		job.setInputFormatClass(SequenceFileInputFormat.class);
