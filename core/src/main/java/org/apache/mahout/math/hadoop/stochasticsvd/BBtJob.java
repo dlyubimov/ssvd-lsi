@@ -30,6 +30,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 
@@ -86,6 +87,8 @@ public class BBtJob {
 
 		private VectorWritable m_vw = new VectorWritable();
 		private IntWritable m_iw = new IntWritable();
+		private DenseVector  m_v;
+		double[] m_vRow;
 		
 
 		@Override
@@ -93,9 +96,12 @@ public class BBtJob {
 				Context context) throws IOException, InterruptedException {
 			Vector btVec=value.get();
 			int kp=btVec.size();
+			if ( m_v == null ) { m_v = new DenseVector(m_vRow=new double[kp],true); m_vw.set(m_v); }
 			for ( int i =0; i < kp; i++ ) { 
+			    // this approach should reduce GC churn rate
+			    double mul=btVec.getQuick(i);
+			    for ( int j =0; j < kp; j++ ) m_vRow[j] = mul*btVec.getQuick(j);
 			    m_iw.set(i);
-			    m_vw.set(value.get().times(value.get().getQuick(i)));
 			    context.write(m_iw, m_vw);
 			}
 		}
