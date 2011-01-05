@@ -88,7 +88,7 @@ public class UpperTriangular extends AbstractMatrix {
 	}
 	
 	public Matrix assignRow ( int row, double[] other ) { 
-	    System.arraycopy(other, row, m_values, getL(row, 0), m_n-row);
+	    System.arraycopy(other, row, m_values, getL(row, row), m_n-row);
 	    return this;
 	}
 

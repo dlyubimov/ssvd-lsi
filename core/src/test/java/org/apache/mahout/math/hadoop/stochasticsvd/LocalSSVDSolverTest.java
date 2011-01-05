@@ -55,7 +55,7 @@ public class LocalSSVDSolverTest extends TestCase {
 		
 		LinkedList<Closeable> closeables=new LinkedList<Closeable>();
 		Random rnd = new Random();
-		int m = 10000, n=100, k=40, p=60, ablockRows=10000;
+		int m = 1000, n=100, k=40, p=60, ablockRows=251;
 		
 		double muAmplitude=5e+1;
 		
