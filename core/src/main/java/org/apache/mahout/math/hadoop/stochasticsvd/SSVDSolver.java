@@ -237,19 +237,26 @@ public class SSVDSolver {
 			        BtJob.OUTPUT_Bt+"-*"), 
 			        bbtPath, 1);
 			
-			double[][] bbt=loadDistributedRowMatrix(fs, 
+			UpperTriangular bbt=loadUpperTriangularMatrix(fs, 
 			        new Path(bbtPath,BBtJob.OUTPUT_BBt+"-*"), m_conf);
+
+			// convert bbt to something our eigensolver could understand
+			assert bbt.columnSize()==m_k+m_p;
 			
-			// make sure it is symmetric exactly. sometimes the commons math package detects 
-			// rounding error and barfs at it. 
-			for ( int i = 0; i < m_k+m_p-1; i++ )
-				for ( int j = i+1; j < m_k+m_p; j++ ) 
-					bbt[j][i]=bbt[i][j];
+			double[][] bbtSquare=new double[m_k+m_p][];
+			for ( int i =0; i < m_k+m_p; i++ ) 
+			    bbtSquare[i]=new double[m_k+m_p];
+			
+            for ( int i =0; i < m_k+m_p; i++ )
+                for ( int j = i; j < m_k+m_p; j++ ) 
+                    bbtSquare[i][j]=bbtSquare[j][i]=bbt.getQuick(i, j);
+			
+			
 			
 			m_svalues=new double[m_k+m_p];
 			
 			// try something else.
-			EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbt),0);
+			EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbtSquare),0);
 			double[] eigenva2=evd2.getRealEigenvalues();
 			for ( int i = 0; i < m_k+m_p; i++ ) 
 				m_svalues[i]=Math.sqrt(eigenva2[i]); // sqrt?
@@ -431,5 +438,40 @@ public class SSVDSolver {
 		
 		return denseData.toArray(new double[denseData.size()][]);
 	}
+	
+	   public static UpperTriangular loadUpperTriangularMatrix(FileSystem fs, Path glob, Configuration conf ) throws IOException { 
+	        
+	        FileStatus[] files=fs.globStatus(glob);
+	        if ( files == null ) return null;
+	        
+	        IntWritable iw = new IntWritable();
+	        VectorWritable vw = new VectorWritable();
+	        UpperTriangular result=null; 
+	        
+	        // assume it is partitioned output, so we need to read them up 
+	        // in order of partitions.
+	        Arrays.sort(files, s_partitionComparator);
+	        
+	        for ( FileStatus fstat:files)  {
+	            Path file = fstat.getPath();
+	            SequenceFile.Reader reader = new SequenceFile.Reader(fs, file, conf);
+	            try { 
+	                while ( reader.next(iw,vw)) {
+	                    Vector v= vw.get();
+	                    if ( result == null ) 
+	                        result = new UpperTriangular(v);
+	                    else 
+	                        throw new IOException ("Unexpected overrun in upper triangular matrix files");
+	                }
+	            } finally { 
+	                reader.close();
+	            }
+	        }
+	        
+	        if ( result == null ) 
+	            throw new IOException ( "Unexpected underrun in upper triangular matrix files");
+	        return result;
+	    }
+
 	
 }
