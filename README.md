@@ -55,10 +55,13 @@ matrix in input for memory, assuming -Xmx1G for mapper child processes.
 
 It has a bunch of limitations for network I/O as discussed int the 
 [working notes](https://github.com/dlyubimov/ssvd-lsi/raw/doc/SSVD%20working%20notes.pdf) but 
-is optimized for most LSI work where average number of lemmas per document does not exceed 30k .
+is optimized for most LSI work where average number of lemmas per document does not exceed 30k and 
+contains no uncommitted Mahout hacks.
 
 That said, even with perceived I/O deficiencies for wider matrices, this algorithm is expected 
 to be CPU bound to such degree that seemingly far overshadows any I/O concerns.
+
+tag *givens-verified* tags last point of successful distributed/scale test with verification of results. Use that.
 
 ### branch ssvd-vw-hack in ssvd-lsi
 This branch contains enhancements to VectorWritable in order to enable vector preprocessing capability 
@@ -77,6 +80,9 @@ a new Vector-derived storage on each record read.
 Status: all code intended for this patch is here and unit tests (including larger tests) are succeeding. 
 Unit tests are using hadoop in local mode only though; i haven't yet tested it with distributed Hadoop 
 setup (which is why i call it alhpa-ish quality at this point).
+
+tag *preprocessing-verified* tags last point of successful distributed/scale test with verification of results. Use that.
+
 
 ### branch ssvd-wide (WIP)
 This branch introduces more efficient support for wider matrices (>30k nonzero data elements per row) in terms of 
