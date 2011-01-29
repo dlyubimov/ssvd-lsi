@@ -56,8 +56,7 @@ public class BayesThetaNormalizerReducer extends MapReduceBase implements
     // Key is label,word, value is the number of times we've seen this label
     // word per local node. Output is the same
     
-    // String token = key.toString();
-    
+
     double weightSumPerLabel = 0.0;
     
     while (values.hasNext()) {
@@ -78,7 +77,7 @@ public class BayesThetaNormalizerReducer extends MapReduceBase implements
   @Override
   public void configure(JobConf job) {
     try {
-      Parameters params = Parameters.fromString(job.get("bayes.parameters", ""));
+      Parameters params = new Parameters(job.get("bayes.parameters", ""));
       if (params.get("dataSource").equals("hbase")) {
         useHbase = true;
       } else {

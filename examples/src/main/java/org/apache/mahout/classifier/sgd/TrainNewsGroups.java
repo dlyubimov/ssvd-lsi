@@ -34,7 +34,7 @@ import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.RandomAccessSparseVector;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.Functions;
-import org.apache.mahout.math.function.UnaryFunction;
+import org.apache.mahout.math.function.DoubleFunction;
 import org.apache.mahout.vectorizer.encoders.ConstantValueEncoder;
 import org.apache.mahout.vectorizer.encoders.Dictionary;
 import org.apache.mahout.vectorizer.encoders.FeatureVectorEncoder;
@@ -42,10 +42,12 @@ import org.apache.mahout.vectorizer.encoders.StaticWordValueEncoder;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collection;
@@ -190,13 +192,13 @@ public final class TrainNewsGroups {
         
         Matrix beta = model.getBeta();
         maxBeta = beta.aggregate(Functions.MAX, Functions.ABS);
-        nonZeros = beta.aggregate(Functions.PLUS, new UnaryFunction() {
+        nonZeros = beta.aggregate(Functions.PLUS, new DoubleFunction() {
           @Override
           public double apply(double v) {
             return Math.abs(v) > 1.0e-6 ? 1 : 0;
           }
         });
-        positive = beta.aggregate(Functions.PLUS, new UnaryFunction() {
+        positive = beta.aggregate(Functions.PLUS, new DoubleFunction() {
           @Override
           public double apply(double v) {
             return v > 0 ? 1 : 0;
@@ -214,7 +216,8 @@ public final class TrainNewsGroups {
       }
       if (k % (bump * scale) == 0) {
         if (learningAlgorithm.getBest() != null) {
-          ModelSerializer.writeBinary("/tmp/news-group-" + k + ".model", learningAlgorithm.getBest().getPayload().getLearner().getModels().get(0));
+          ModelSerializer.writeBinary("/tmp/news-group-" + k + ".model",
+                                      learningAlgorithm.getBest().getPayload().getLearner().getModels().get(0));
         }
 
         step += 0.25;
@@ -227,7 +230,8 @@ public final class TrainNewsGroups {
     dissect(leakType, newsGroups, learningAlgorithm, files);
     System.out.println("exiting main");
 
-    ModelSerializer.writeBinary("/tmp/news-group.model", learningAlgorithm.getBest().getPayload().getLearner().getModels().get(0));
+    ModelSerializer.writeBinary("/tmp/news-group.model",
+                                learningAlgorithm.getBest().getPayload().getLearner().getModels().get(0));
 
     List<Integer> counts = Lists.newArrayList();
     System.out.printf("Word counts\n");
@@ -270,8 +274,9 @@ public final class TrainNewsGroups {
     List<String> ngNames = Lists.newArrayList(newsGroups.values());
     List<ModelDissector.Weight> weights = md.summary(100);
     for (ModelDissector.Weight w : weights) {
-      System.out.printf("%s\t%.1f\t%s\t%.1f\t%s\t%.1f\t%s\n", w.getFeature(), w.getWeight(), ngNames.get(w.getMaxImpact() + 1),
-        w.getCategory(1), w.getWeight(1), w.getCategory(2), w.getWeight(2));
+      System.out.printf("%s\t%.1f\t%s\t%.1f\t%s\t%.1f\t%s\n",
+                        w.getFeature(), w.getWeight(), ngNames.get(w.getMaxImpact() + 1),
+                        w.getCategory(1), w.getWeight(1), w.getCategory(2), w.getWeight(2));
     }
   }
 
@@ -279,7 +284,8 @@ public final class TrainNewsGroups {
     long date = (long) (1000 * (DATE_REFERENCE + actual * MONTH + 1 * WEEK * rand.nextDouble()));
     Multiset<String> words = ConcurrentHashMultiset.create();
 
-    BufferedReader reader = new BufferedReader(new FileReader(file));
+    BufferedReader reader =
+        new BufferedReader(new InputStreamReader(new FileInputStream(file), Charset.forName("UTF-8")));
     try {
       String line = reader.readLine();
       Reader dateString = new StringReader(DATE_FORMATS[leakType % 3].format(new Date(date)));

@@ -17,10 +17,8 @@
 
 package org.apache.mahout.classifier.sgd;
 
-import com.google.common.base.CharMatcher;
 import com.google.common.base.Charsets;
-import com.google.common.base.Splitter;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.io.Resources;
 import org.apache.mahout.classifier.AbstractVectorClassifier;
@@ -29,27 +27,40 @@ import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.Reader;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.charset.Charset;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TrainLogisticTest extends MahoutTestCase {
 
-  private static final Splitter ON_WHITE_SPACE = 
-      Splitter.on(CharMatcher.BREAKING_WHITESPACE).trimResults().omitEmptyStrings();
-
   @Test
-  public void testMain() throws IOException {
+  public void example13_1() throws Exception {
     String outputFile = getTestTempFile("model").getAbsolutePath();
-    String inputFile = "donut.csv";
-    String[] args = Iterables.toArray(ON_WHITE_SPACE.split(
-      "--input " +
-        inputFile +
-        " --output " +
-        outputFile +
-        " --target color --categories 2 " +
-        "--predictors x y --types numeric --features 20 --passes 100 --rate 50 "), String.class);
-    TrainLogistic.main(args);
+
+    String trainOut = runMain(TrainLogistic.class, new String[]{
+      "--input", "donut.csv",
+      "--output", outputFile,
+      "--target", "color", "--categories", "2",
+      "--predictors", "x", "y",
+      "--types", "numeric",
+      "--features", "20",
+      "--passes", "100",
+      "--rate", "50"
+    });
+    assertTrue(trainOut.contains("x -0.7"));
+    assertTrue(trainOut.contains("y -0.4"));
+
     LogisticModelParameters lmp = TrainLogistic.getParameters();
     assertEquals(1.0e-4, lmp.getLambda(), 1.0e-9);
     assertEquals(20, lmp.getNumFeatures());
@@ -59,10 +70,103 @@ public class TrainLogisticTest extends MahoutTestCase {
     assertEquals("[1, 2]", Sets.newTreeSet(csv.getTargetCategories()).toString());
     assertEquals("[Intercept Term, x, y]", Sets.newTreeSet(csv.getPredictors()).toString());
 
-
+    // verify model by building dissector
     AbstractVectorClassifier model = TrainLogistic.getModel();
+    List<String> data = Resources.readLines(Resources.getResource("donut.csv"), Charsets.UTF_8);
+    Map<String, Double> expectedValues = ImmutableMap.of("x", -0.7, "y", -0.43, "Intercept Term", -0.15);
+    verifyModel(lmp, csv, data, model, expectedValues);
+
+    // test saved model
+    Reader in = new InputStreamReader(new FileInputStream(new File(outputFile)), Charset.forName("UTF-8"));
+    LogisticModelParameters lmpOut = LogisticModelParameters.loadFrom(in);
+    in.close();
+    CsvRecordFactory csvOut = lmpOut.getCsvRecordFactory();
+    csvOut.firstLine(data.get(0));
+    OnlineLogisticRegression lrOut = lmpOut.createRegression();
+    verifyModel(lmpOut, csvOut, data, lrOut, expectedValues);
+
+    String output = runMain(RunLogistic.class, new String[]{
+        "--input", "donut.csv",
+        "--model", outputFile,
+        "--auc",
+        "--confusion"
+    });
+    assertTrue(output.contains("AUC = 0.57"));
+    assertTrue(output.contains("confusion: [[27.0, 13.0], [0.0, 0.0]]"));
+  }
+
+  @Test
+  public void example13_2() throws Exception {
+    String outputFile = getTestTempFile("model").getAbsolutePath();
+    String trainOut = runMain(TrainLogistic.class, new String[]{
+        "--input", "donut.csv",
+        "--output", outputFile,
+        "--target", "color",
+        "--categories", "2",
+        "--predictors", "x", "y", "a", "b", "c",
+        "--types", "numeric",
+        "--features", "20",
+        "--passes", "100",
+        "--rate", "50"
+    });
+
+    assertTrue(trainOut.contains("a 0."));
+    assertTrue(trainOut.contains("b -1."));
+    assertTrue(trainOut.contains("c -25."));
+
+    String output = runMain(RunLogistic.class, new String[]{
+        "--input", "donut.csv",
+        "--model", outputFile,
+        "--auc",
+        "--confusion"
+    });
+    assertTrue(output.contains("AUC = 1.00"));
+
+    String heldout = runMain(RunLogistic.class, new String[]{
+        "--input", "donut-test.csv",
+        "--model", outputFile,
+        "--auc",
+        "--confusion"
+    });
+    assertTrue(heldout.contains("AUC = 0.9"));
+  }
+
+  /**
+   * Runs a class with a public static void main method.  We assume that there is an accessible
+   * field named "output" that we can change to redirect output.
+   *
+   *
+   * @param clazz   contains the main method.
+   * @param args    contains the command line arguments
+   * @return The contents to standard out as a string.
+   * @throws IOException                   Not possible, but must be declared.
+   * @throws NoSuchFieldException          If there isn't an output field.
+   * @throws IllegalAccessException        If the output field isn't accessible by us.
+   * @throws NoSuchMethodException         If there isn't a main method.
+   * @throws InvocationTargetException     If the main method throws an exception.
+   */
+  private static String runMain(Class<?> clazz, String[] args)
+    throws NoSuchFieldException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+    ByteArrayOutputStream trainOutput = new ByteArrayOutputStream();
+    PrintStream printStream = new PrintStream(trainOutput);
+
+    Field outputField = clazz.getDeclaredField("output");
+    Method main = clazz.getMethod("main", args.getClass());
+
+    outputField.set(null, printStream);
+    Object[] argList = {args};
+    main.invoke(null, argList);
+    printStream.close();
+
+    return new String(trainOutput.toByteArray(), Charsets.UTF_8);
+  }
+
+  private static void verifyModel(LogisticModelParameters lmp,
+                                  RecordFactory csv,
+                                  List<String> data,
+                                  AbstractVectorClassifier model,
+                                  Map<String, Double> expectedValues) {
     ModelDissector md = new ModelDissector();
-    List<String> data = Resources.readLines(Resources.getResource(inputFile), Charsets.UTF_8);
     for (String line : data.subList(1, data.size())) {
       Vector v = new DenseVector(lmp.getNumFeatures());
       csv.getTraceDictionary().clear();
@@ -70,12 +174,13 @@ public class TrainLogisticTest extends MahoutTestCase {
       md.update(v, csv.getTraceDictionary(), model);
     }
 
+    // check right variables are present
     List<ModelDissector.Weight> weights = md.summary(10);
-    Set<String> expected = Sets.newHashSet("x", "y", "Intercept Term");
+    Set<String> expected = Sets.newHashSet(expectedValues.keySet());
     for (ModelDissector.Weight weight : weights) {
       assertTrue(expected.remove(weight.getFeature()));
+      assertEquals(expectedValues.get(weight.getFeature()), weight.getWeight(), 0.1);
     }
     assertEquals(0, expected.size());
-    System.out.printf("%s\n", weights);
   }
 }
