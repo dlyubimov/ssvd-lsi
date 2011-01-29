@@ -27,21 +27,19 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.math.linear.Array2DRowRealMatrix;
-import org.apache.commons.math.linear.EigenDecompositionImpl;
-import org.apache.commons.math.linear.RealMatrix;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Writable;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
+import org.apache.mahout.math.ssvd.EigenSolverWrapper;
 
 /**
  * Stochastic SVD solver. <P>
@@ -250,14 +248,15 @@ public class SSVDSolver {
 			m_svalues=new double[m_k+m_p];
 			
 			// try something else.
-			EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbtSquare),0);
-			double[] eigenva2=evd2.getRealEigenvalues();
+			EigenSolverWrapper eigenWrapper = new EigenSolverWrapper(bbtSquare);
+			
+			double[] eigenva2=eigenWrapper.getEigenValues();
 			for ( int i = 0; i < m_k+m_p; i++ ) 
 				m_svalues[i]=Math.sqrt(eigenva2[i]); // sqrt?
 			
 			// save/redistribute UHat 
 			//
-			RealMatrix uHatrm = evd2.getV();
+			double[][] uHat = eigenWrapper.getUHat();
 			
 			fs.mkdirs(uHatPath);
 			SequenceFile.Writer uHatWriter = SequenceFile.createWriter(
@@ -268,11 +267,11 @@ public class SSVDSolver {
 			        CompressionType.BLOCK );
 			closeables.addFirst(uHatWriter);
 			
-		    int m=uHatrm.getRowDimension();
+		    int m=uHat.length;
 		    IntWritable iw = new IntWritable(); 
 		    VectorWritable vw = new VectorWritable();
 		    for ( int i = 0; i < m; i ++ ) { 
-		        vw.set(new DenseVector (uHatrm.getRow(i), true ));
+		        vw.set(new DenseVector (uHat[i], true ));
 		        iw.set(i);
 		        uHatWriter.append(iw,vw);
 		    }

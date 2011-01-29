@@ -25,12 +25,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.apache.commons.math.linear.Array2DRowRealMatrix;
-import org.apache.commons.math.linear.EigenDecompositionImpl;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.SingularValueDecomposition;
 import org.apache.mahout.math.Vector;
+import org.apache.mahout.math.ssvd.EigenSolverWrapper;
 
 /**
  * SSVD protoptype: non-MR concept verification for Givens QR & SSVD basic algorithms
@@ -266,8 +265,8 @@ public class SSVDPrototype {
 			for ( int j=0; j< kp; j++) bbtValues[i][j]=bbtRow.getQuick(j);
 		}
 		
-		EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbtValues),0);
-		double[] eigenva2=evd2.getRealEigenvalues();
+		EigenSolverWrapper eigenWrapper=new EigenSolverWrapper(bbtValues);
+		double[] eigenva2=eigenWrapper.getEigenValues();
 		double[] svalues=new double[kp];
 		for ( int i = 0; i < kp; i++ ) 
 			svalues[i]=Math.sqrt(eigenva2[i]); // sqrt?
@@ -372,18 +371,16 @@ public class SSVDPrototype {
 			for ( int j=0; j< kp; j++) bbtValues[i][j]=bbtRow.getQuick(j);
 		}
 		
-		EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbtValues),0);
-		double[] eigenva2=evd2.getRealEigenvalues();
+		EigenSolverWrapper eigenWrapper = new EigenSolverWrapper(bbtValues);
+		
+		double[] eigenva2=eigenWrapper.getEigenValues();
 		double[] svalues=new double[kp];
 		for ( int i = 0; i < kp; i++ ) 
 			svalues[i]=Math.sqrt(eigenva2[i]); // sqrt?
 		
-
 		for ( int i = 0; i < kp; i++ ) 
 			System.out.printf("%e ", svalues[i]);
 		System.out.println();
-			
-
 	}
 	
 	public static void main ( String[] args ) throws Exception { 
