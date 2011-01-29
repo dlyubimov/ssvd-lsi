@@ -59,7 +59,6 @@ public class BayesWeightSummerReducer extends MapReduceBase implements
       sum += values.next().get();
     }
     reporter.setStatus("Bayes Weight Summer Reducer: " + key + " => " + sum);
-    // char firstChar = key.toString().charAt(0);
     if (useHbase) {
       if (key.stringAt(0).equals(BayesConstants.FEATURE_SUM)) { // sum of weight
         // for all
@@ -92,7 +91,7 @@ public class BayesWeightSummerReducer extends MapReduceBase implements
   @Override
   public void configure(JobConf job) {
     try {
-      Parameters params = Parameters.fromString(job.get("bayes.parameters", ""));
+      Parameters params = new Parameters(job.get("bayes.parameters", ""));
       if (params.get("dataSource").equals("hbase")) {
         useHbase = true;
       } else {

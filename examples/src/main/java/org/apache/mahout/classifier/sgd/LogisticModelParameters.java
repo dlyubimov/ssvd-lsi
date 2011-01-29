@@ -20,7 +20,6 @@ package org.apache.mahout.classifier.sgd;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.InstanceCreator;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
@@ -34,12 +33,13 @@ import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.Matrix;
 
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -121,9 +121,7 @@ public class LogisticModelParameters {
       lr.close();
     }
     targetCategories = csv.getTargetCategories();
-    GsonBuilder gb = new GsonBuilder();
-    gb.registerTypeAdapter(Matrix.class, new MatrixTypeAdapter());
-    Gson gson = gb.setPrettyPrinting().create();
+    Gson gson = ModelSerializer.gson();
 
     String savedForm = gson.toJson(this);
     out.write(savedForm);
@@ -136,9 +134,7 @@ public class LogisticModelParameters {
    * @return The LogisticModelParameters object that we read.
    */
   public static LogisticModelParameters loadFrom(Reader in) {
-    GsonBuilder gb = new GsonBuilder();
-    gb.registerTypeAdapter(Matrix.class, new MatrixTypeAdapter());
-    return gb.create().fromJson(in, LogisticModelParameters.class);
+    return ModelSerializer.gson().fromJson(in, LogisticModelParameters.class);
   }
 
   /**
@@ -149,7 +145,7 @@ public class LogisticModelParameters {
    * @throws IOException If there is an error opening or closing the file.
    */
   public static LogisticModelParameters loadFrom(File in) throws IOException {
-    InputStreamReader input = new FileReader(in);
+    Reader input = new InputStreamReader(new FileInputStream(in), Charset.forName("UTF-8"));
     try {
       return loadFrom(input);
     } finally {

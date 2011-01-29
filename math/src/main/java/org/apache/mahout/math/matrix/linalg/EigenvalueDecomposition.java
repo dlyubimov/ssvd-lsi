@@ -8,18 +8,19 @@ It is provided "as is" without expressed or implied warranty.
 */
 package org.apache.mahout.math.matrix.linalg;
 
-import org.apache.mahout.math.matrix.DoubleFactory1D;
-import org.apache.mahout.math.matrix.DoubleFactory2D;
 import org.apache.mahout.math.matrix.DoubleMatrix1D;
 import org.apache.mahout.math.matrix.DoubleMatrix2D;
+import org.apache.mahout.math.matrix.impl.DenseDoubleMatrix1D;
+import org.apache.mahout.math.matrix.impl.DenseDoubleMatrix2D;
 
 import java.io.Serializable;
 
+import static org.apache.mahout.math.Algebra.hypot;
 import static org.apache.mahout.math.matrix.linalg.Property.*;
 
 /** @deprecated until unit tests are in place.  Until this time, this class/interface is unsupported. */
 @Deprecated
-public class EigenvalueDecomposition implements Serializable {
+public final class EigenvalueDecomposition implements Serializable {
 
   /** Row and column dimension (square matrix). */
   private final int n;
@@ -124,7 +125,7 @@ public class EigenvalueDecomposition implements Serializable {
         D[i][i - 1] = e[i];
       }
     }
-    return DoubleFactory2D.DENSE.make(D);
+    return new DenseDoubleMatrix2D(D);
   }
 
   /**
@@ -133,7 +134,7 @@ public class EigenvalueDecomposition implements Serializable {
    * @return imag(diag(D))
    */
   public DoubleMatrix1D getImagEigenvalues() {
-    return DoubleFactory1D.dense.make(e);
+    return new DenseDoubleMatrix1D(e);
   }
 
   /**
@@ -142,7 +143,7 @@ public class EigenvalueDecomposition implements Serializable {
    * @return real(diag(D))
    */
   public DoubleMatrix1D getRealEigenvalues() {
-    return DoubleFactory1D.dense.make(d);
+    return new DenseDoubleMatrix1D(d);
   }
 
   /**
@@ -151,7 +152,7 @@ public class EigenvalueDecomposition implements Serializable {
    * @return <tt>V</tt>
    */
   public DoubleMatrix2D getV() {
-    return DoubleFactory2D.DENSE.make(V);
+    return new DenseDoubleMatrix2D(V);
   }
 
   /** Nonsymmetric reduction from Hessenberg to real Schur form. */
@@ -774,7 +775,7 @@ public class EigenvalueDecomposition implements Serializable {
 
           double g = d[l];
           double p = (d[l + 1] - g) / (2.0 * e[l]);
-          double r = Algebra.hypot(p, 1.0);
+          double r = hypot(p, 1.0);
           if (p < 0) {
             r = -r;
           }
@@ -802,7 +803,7 @@ public class EigenvalueDecomposition implements Serializable {
             s2 = s;
             g = c * e[i];
             h = c * p;
-            r = Algebra.hypot(p, e[i]);
+            r = hypot(p, e[i]);
             e[i + 1] = s * r;
             s = e[i] / r;
             c = p / r;
