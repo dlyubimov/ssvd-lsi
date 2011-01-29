@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import org.apache.mahout.math.function.BinaryFunction;
+import org.apache.mahout.math.function.DoubleDoubleFunction;
 import org.apache.mahout.math.function.PlusMult;
 
 /** Implements vector as an array of doubles */
@@ -124,7 +124,7 @@ public class DenseVector extends AbstractVector {
   }
   
   @Override
-  public Vector assign(Vector other, BinaryFunction function) {
+  public Vector assign(Vector other, DoubleDoubleFunction function) {
     if (size() != other.size()) {
       throw new CardinalityException(size(), other.size());
     }
@@ -141,6 +141,16 @@ public class DenseVector extends AbstractVector {
       }
     }
     lengthSquared = -1;
+    return this;
+  }
+
+  public Vector assign(DenseVector vector) {
+    // make sure the data field has the correct length
+    if (vector.values.length != this.values.length) {
+      this.values = new double[vector.values.length];
+    }
+    // now copy the values
+    System.arraycopy(vector.values, 0, this.values, 0, this.values.length);
     return this;
   }
 

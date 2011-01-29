@@ -15,13 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.mahout.math.function;
+package org.apache.mahout.driver;
+
+import org.junit.Test;
 
 /**
- * This interface allows the formulation of unary functions to be applied to matrices inside the inner loops of their
- * implementations.
+ * Tests if MahoutDriver can be run directly through its main method.
  */
-public interface UnaryFunction extends DoubleFunction {
+public final class MahoutDriverTest {
 
+  @Test
+  public void testMain() throws Throwable {
+    MahoutDriver.main(new String[] {"canopy", "help"});
+  }
 
 }
