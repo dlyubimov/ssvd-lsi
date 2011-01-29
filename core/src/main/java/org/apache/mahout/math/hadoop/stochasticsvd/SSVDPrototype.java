@@ -31,7 +31,6 @@ import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.SingularValueDecomposition;
 import org.apache.mahout.math.Vector;
-import org.apache.mahout.math.function.UnaryFunction;
 
 /**
  * SSVD protoptype: non-MR concept verification for Givens QR & SSVD basic algorithms
@@ -174,15 +173,21 @@ public class SSVDPrototype {
 	public static void testThinQr (int dims, int kp, final long rndSeed  ) throws Exception { 
 		
 		DenseMatrix mx = new DenseMatrix(dims<<2,dims);
-		mx.assign(new UnaryFunction() {
-
-			Random m_rnd = new Random(rndSeed);
-			
-			@Override
-			public double apply(double arg0) {
-				return m_rnd.nextDouble()*1000;
-			}
-		});
+//		mx.assign(new UnaryFunction() {
+//
+//			Random m_rnd = new Random(rndSeed);
+//			
+//			@Override
+//			public double apply(double arg0) {
+//				return m_rnd.nextDouble()*1000;
+//			}
+//		});
+		
+		Random rnd = new Random();
+		for ( int i = 0; i < mx.rowSize(); i++ )
+		    for ( int j = 0; j < mx.columnSize(); j++ ) 
+		        mx.set(i, j,  rnd.nextDouble()*1000);
+		    
 		
 		mx.setQuick(0, 0, 1);
 		mx.setQuick(0, 1, 2);
@@ -278,16 +283,20 @@ public class SSVDPrototype {
 	public static void testBlockQrWithSSVD ( int dims, int kp, int r, final long rndSeed ) throws Exception { 
 		
 		DenseMatrix mx = new DenseMatrix(dims<<2,dims);
-		mx.assign(new UnaryFunction() {
-
-			Random m_rnd = new Random(rndSeed);
-			
-			@Override
-			public double apply(double arg0) {
-				return (m_rnd.nextDouble()-0.5)*1000;
-			}
-		});
+//		mx.assign(new UnaryFunction() {
+//
+//			Random m_rnd = new Random(rndSeed);
+//			
+//			@Override
+//			public double apply(double arg0) {
+//				return (m_rnd.nextDouble()-0.5)*1000;
+//			}
+//		});
 		
+        Random rnd = new Random();
+        for ( int i = 0; i < mx.rowSize(); i++ )
+            for ( int j = 0; j < mx.columnSize(); j++ ) 
+                mx.set(i, j,  (rnd.nextDouble()-0.5)*1000);
 		mx.setQuick(0, 0, 1);
 		mx.setQuick(0, 1, 2);
 		mx.setQuick(0, 2, 3);
