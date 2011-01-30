@@ -34,12 +34,13 @@ import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.compress.DefaultCodec;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorWritable;
@@ -112,7 +113,7 @@ public class QJob {
 		private DenseBlockWritable	m_value = new DenseBlockWritable();
 		private QJobKeyWritable		m_key = new QJobKeyWritable();
 		private IntWritable         m_tempKey = new IntWritable();
-		private MultipleOutputs<QJobKeyWritable, Writable>     m_outputs;
+		private MultipleOutputs     m_outputs;
 		private LinkedList<Closeable> m_closeables = new LinkedList<Closeable>();
 		private SequenceFile.Writer   m_tempQw;
 		private Path                  m_tempQPath;
@@ -141,8 +142,9 @@ public class QJob {
 		        // for efficiency in most cases. Sure mapper should be able to load 
 		        // the entire split in memory -- and we don't require even that.
 		        m_value.setBlock(m_qSolver.getThinQtTilde());
-		        m_outputs.write(OUTPUT_QHAT, m_key, m_value);
-		        m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_qSolver.getRTilde().getData(),true)));
+		        m_outputs.getCollector(OUTPUT_QHAT, null).collect(m_key, m_value);
+		        m_outputs.getCollector(OUTPUT_R, null).collect(m_key, 
+		                new VectorWritable(new DenseVector(m_qSolver.getRTilde().getData(),true)));
 		        
 		    } else secondPass(ctx);
 		}
@@ -161,13 +163,14 @@ public class QJob {
                     GivensThinSolver.mergeR(m_rSubseq.get(0), m_rSubseq.remove(1));
                     
                 else qCnt++;
-                m_outputs.write(OUTPUT_QHAT, m_key, m_value);
+                m_outputs.getCollector(OUTPUT_QHAT, null).collect(m_key, m_value);
             }
             
             assert m_rSubseq.size()==1;
 
 //          m_value.setR(m_rSubseq.get(0));
-            m_outputs.write(OUTPUT_R, m_key, new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),true)));
+            m_outputs.getCollector(OUTPUT_R, null).collect(m_key, 
+                    new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),true)));
 		    
 		}
 
@@ -203,15 +206,11 @@ public class QJob {
 			m_omega = new Omega(omegaSeed, k, p);
 			m_yLookahead=new ArrayList<double[]>(m_kp);
 			m_qSolver = new GivensThinSolver(m_r, m_kp);
-			m_outputs=new MultipleOutputs(context);
+			m_outputs=new MultipleOutputs(new JobConf(context.getConfiguration()));
 			m_closeables.addFirst(new Closeable() {
                 @Override
                 public void close() throws IOException {
-                    try { 
-                        m_outputs.close();
-                    } catch ( InterruptedException exc ) { 
-                        throw new IOException ( exc );
-                    }
+                    m_outputs.close();
                 }
             });
 			
@@ -284,7 +283,19 @@ public class QJob {
 			int numReduceTasks  ) 
 	throws ClassNotFoundException, InterruptedException, IOException {
 		
-		Job job=new Job(conf);
+	    JobConf oldApiJob = new JobConf ( conf);
+        MultipleOutputs.addNamedOutput(
+                oldApiJob, 
+                OUTPUT_QHAT,
+                org.apache.hadoop.mapred.SequenceFileOutputFormat.class,
+                QJobKeyWritable.class,DenseBlockWritable.class);
+        MultipleOutputs.addNamedOutput(
+                oldApiJob, 
+                OUTPUT_R,
+                org.apache.hadoop.mapred.SequenceFileOutputFormat.class,
+                QJobKeyWritable.class, VectorWritable.class);
+
+        Job job=new Job(oldApiJob);
 		job.setJobName("Q-job");
 		job.setJarByClass(QJob.class);
 		
@@ -295,13 +306,6 @@ public class QJob {
 		    SequenceFileInputFormat.setMinInputSplitSize(job, minSplitSize);
 		
 		FileOutputFormat.setOutputPath(job, outputPath);
-		
-		MultipleOutputs.addNamedOutput(job, OUTPUT_QHAT,
-		        SequenceFileOutputFormat.class,
-		        QJobKeyWritable.class,DenseBlockWritable.class);
-		MultipleOutputs.addNamedOutput(job, OUTPUT_R,
-		        SequenceFileOutputFormat.class,
-		        QJobKeyWritable.class, VectorWritable.class);
 		
 		SequenceFileOutputFormat.setCompressOutput(job, true);
 		SequenceFileOutputFormat.setOutputCompressorClass(job, DefaultCodec.class);

@@ -19,13 +19,13 @@ package org.apache.mahout.math.hadoop.stochasticsvd;
 
 import java.util.Random;
 
+import junit.framework.Assert;
+import junit.framework.TestCase;
+
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
-import org.apache.mahout.math.function.UnaryFunction;
-
-import junit.framework.Assert;
-import junit.framework.TestCase;
+import org.apache.mahout.math.function.DoubleFunction;
 
 public class SSVDPrototypeTest extends TestCase {
     
@@ -39,7 +39,7 @@ public class SSVDPrototypeTest extends TestCase {
     public void testGivensQR() throws Exception { 
     //		DenseMatrix m = new DenseMatrix(dims<<2,dims);
     		DenseMatrix m = new DenseMatrix(3,3);
-    		m.assign(new UnaryFunction() {
+    		m.assign(new DoubleFunction() {
     
     			Random m_rnd = new Random();
     			

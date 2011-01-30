@@ -45,7 +45,7 @@ import org.apache.mahout.math.VectorWritable;
  */
 public class BBtJob {
 
-    public static final String OUTPUT_BBt = "BBt";
+    public static final String OUTPUT_BBt = "part";
 
     public static void run(Configuration conf, Path btPath, Path outputPath,
             int numReduceTasks) throws IOException, ClassNotFoundException,

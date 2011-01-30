@@ -31,13 +31,14 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.DefaultCodec;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
@@ -49,7 +50,7 @@ public class BtJob {
     	
     
     public static final String  OUTPUT_Q = "Q";
-    public static final String  OUTPUT_Bt = "Bt";
+    public static final String  OUTPUT_Bt = "part";
     public static final String  PROP_QJOB_PATH = "ssvd.QJob.path";
 
     	
@@ -62,7 +63,7 @@ public class BtJob {
         private int         m_blockNum;
         private double[][]  m_qt;
         private int         m_cnt=0, m_r;
-        private MultipleOutputs<IntWritable,VectorWritable> m_outputs;
+        private MultipleOutputs m_outputs;
         private IntWritable m_btKey = new IntWritable();
         private VectorWritable m_btValue =new VectorWritable();
         private int         m_kp;
@@ -127,7 +128,9 @@ public class BtJob {
             for ( int j = 0; j < m_kp; j++ ) 
                 qRow.setQuick(j, m_qt[j][qRowIndex]);
             
-            m_outputs.write(OUTPUT_Q, key, m_qRowValue); // make sure Qs are inheriting A row labels.
+            m_outputs.getCollector(
+                    OUTPUT_Q, null).collect( key,
+                            m_qRowValue); // make sure Qs are inheriting A row labels.
             
             int n=aRow.size();
             Vector m_btRow = m_btValue.get();
@@ -184,7 +187,7 @@ public class BtJob {
                 else m_Rs.add(new UpperTriangular ( rValue.get()));
                 block++;
             }
-            m_outputs = new MultipleOutputs<IntWritable, VectorWritable>(context);
+            m_outputs = new MultipleOutputs(new JobConf(context.getConfiguration()));
         } 
 	}
 	
@@ -224,7 +227,13 @@ public class BtJob {
             Class<? extends Writable> labelClass ) 
     throws ClassNotFoundException, InterruptedException, IOException {
         
-        Job job=new Job(conf);
+        JobConf oldApiJob = new JobConf ( conf);
+        MultipleOutputs.addNamedOutput(oldApiJob, OUTPUT_Q,
+                org.apache.hadoop.mapred.SequenceFileOutputFormat.class,
+                labelClass, 
+                VectorWritable.class);
+
+        Job job=new Job(oldApiJob);
         job.setJobName("Bt-job");
         job.setJarByClass(BtJob.class);
         
@@ -241,10 +250,6 @@ public class BtJob {
 //        MultipleOutputs.addNamedOutput(job, OUTPUT_Bt,
 //                SequenceFileOutputFormat.class,
 //                QJobKeyWritable.class,QJobValueWritable.class);
-        MultipleOutputs.addNamedOutput(job, OUTPUT_Q,
-                SequenceFileOutputFormat.class,
-                labelClass, 
-                VectorWritable.class);
         
         //Warn: tight hadoop integration here:
         job.getConfiguration().set("mapreduce.output.basename", OUTPUT_Bt);
