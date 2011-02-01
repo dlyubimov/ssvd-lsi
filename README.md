@@ -63,6 +63,10 @@ to be CPU bound to such degree that seemingly far overshadows any I/O concerns.
 
 tag *givens-verified* tags last point of successful distributed/scale test with verification of results. Use that.
 
+### MAHOUT-593
+Mahout patch, a variant of givens-ssvd branch, with dependencies on CDH removed and which (hopefully) 
+works with regular 0.20.2 hadoop framework.
+
 ### branch ssvd-vw-hack in ssvd-lsi
 This branch contains enhancements to VectorWritable in order to enable vector preprocessing capability 
 (based on Mahout trunk). It introduces VectorPreprocessor interface. 'git diff trunk > ssvd-vw-hack.patch' 
