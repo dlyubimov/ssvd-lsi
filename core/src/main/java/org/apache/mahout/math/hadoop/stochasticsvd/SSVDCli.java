@@ -35,88 +35,93 @@ import org.apache.mahout.math.VectorWritable;
  * Mahout CLI adapter for SSVDSolver
  * 
  * @author Dmitriy
- *
+ * 
  */
 public class SSVDCli extends AbstractJob {
 
-    @Override
-    public int run(String[] args) throws Exception {
-        addInputOption();
-        addOutputOption();
-        addOption("rank", "k", "decomposition rank", true);
-        addOption("oversampling", "p", "oversampling", true);
-        addOption("blockHeight", "r", "Y block height (must be > (k+p))", true);
-        addOption("minSplitSize", "s", "minimum split size","-1");
-        addOption("computeU", "U", "compute U (true/false)", "true");
-        addOption("uHalfSigma", "uhs", "Compute U as UHat=U x pow(Sigma,0.5)", "false");
-        addOption("computeV", "V", "compute V (true/false)", "true");
-        addOption("vHalfSigma", "vhs", "compute V as VHat= V x pow(Sigma,0.5)", "false");
-        addOption("reduceTasks", "t", "number of reduce tasks (where applicable)", "1");
-        
-        Map<String, String> pargs = parseArguments(args);
-        if ( pargs == null ) return -1;
-        
-        String input = pargs.get("--input");
-        String output = pargs.get("--output");
-        String tempDir = pargs.get("--tempDir");
-        int k = Integer.parseInt(pargs.get("--rank"));
-        int p = Integer.parseInt(pargs.get ("--oversampling"));
-        int r = Integer.parseInt(pargs.get ("--blockHeight"));
-        int minSplitSize = Integer.parseInt(pargs.get("--minSplitSize"));
-        boolean computeU = Boolean.parseBoolean(pargs.get("--computeU"));
-        boolean computeV = Boolean.parseBoolean(pargs.get("--computeV"));
-        boolean cUHalfSigma= Boolean.parseBoolean(pargs.get("--uHalfSigma"));
-        boolean cVHalfSigma= Boolean.parseBoolean(pargs.get("--vHalfSigma"));
-        int reduceTasks = Integer.parseInt(pargs.get("--reduceTasks"));
-        
-        Configuration conf = getConf();
-        if ( conf == null ) throw new IOException("No Hadoop configuration present");
-        
-        SSVDSolver solver = new SSVDSolver(
-                conf, 
-                new Path[] {new Path(input)}, 
-                new Path ( tempDir), 
-                r, k, p, reduceTasks);
-        solver.setMinSplitSize(minSplitSize);
-        solver.setComputeU(computeU);
-        solver.setComputeV(computeV);
-        solver.setcUHalfSigma(cUHalfSigma);
-        solver.setcVHalfSigma(cVHalfSigma);
-        
-        solver.run();
-        
-        // housekeeping 
-        FileSystem fs = FileSystem.get(conf);
-        
-        Path outPath = new Path ( output);
-        fs.mkdirs(outPath);
+  @Override
+  public int run(String[] args) throws Exception {
+    addInputOption();
+    addOutputOption();
+    addOption("rank", "k", "decomposition rank", true);
+    addOption("oversampling", "p", "oversampling", true);
+    addOption("blockHeight", "r", "Y block height (must be > (k+p))", true);
+    addOption("minSplitSize", "s", "minimum split size", "-1");
+    addOption("computeU", "U", "compute U (true/false)", "true");
+    addOption("uHalfSigma", "uhs", "Compute U as UHat=U x pow(Sigma,0.5)",
+        "false");
+    addOption("computeV", "V", "compute V (true/false)", "true");
+    addOption("vHalfSigma", "vhs", "compute V as VHat= V x pow(Sigma,0.5)",
+        "false");
+    addOption("reduceTasks", "t", "number of reduce tasks (where applicable)",
+        "1");
 
-        SequenceFile.Writer sigmaW = SequenceFile.createWriter(fs, conf, 
-                new Path ( outPath, "sigma"), 
-                NullWritable.class, VectorWritable.class);
-        try { 
-            VectorWritable sValues = new VectorWritable(new DenseVector(
-                    Arrays.copyOf(solver.getSingularValues(),k),true));
-            sigmaW.append(NullWritable.get(), sValues);
-            
-        } finally { 
-            sigmaW.close();
-        }
-        
-        if ( computeU ) { 
-            FileStatus[] uFiles = fs.globStatus(new Path(solver.getUPath()));
-            if ( uFiles != null ) for (FileStatus uf:uFiles ) fs.rename(uf.getPath(), outPath);
-        }
-        if ( computeV ) { 
-            FileStatus[] vFiles = fs.globStatus(new Path ( solver.getVPath()));
-            if ( vFiles != null ) for ( FileStatus vf:vFiles ) fs.rename(vf.getPath(), outPath);
-            
-        }
-        return 0;
+    Map<String, String> pargs = parseArguments(args);
+    if (pargs == null)
+      return -1;
+
+    String input = pargs.get("--input");
+    String output = pargs.get("--output");
+    String tempDir = pargs.get("--tempDir");
+    int k = Integer.parseInt(pargs.get("--rank"));
+    int p = Integer.parseInt(pargs.get("--oversampling"));
+    int r = Integer.parseInt(pargs.get("--blockHeight"));
+    int minSplitSize = Integer.parseInt(pargs.get("--minSplitSize"));
+    boolean computeU = Boolean.parseBoolean(pargs.get("--computeU"));
+    boolean computeV = Boolean.parseBoolean(pargs.get("--computeV"));
+    boolean cUHalfSigma = Boolean.parseBoolean(pargs.get("--uHalfSigma"));
+    boolean cVHalfSigma = Boolean.parseBoolean(pargs.get("--vHalfSigma"));
+    int reduceTasks = Integer.parseInt(pargs.get("--reduceTasks"));
+
+    Configuration conf = getConf();
+    if (conf == null)
+      throw new IOException("No Hadoop configuration present");
+
+    SSVDSolver solver = new SSVDSolver(conf, new Path[] { new Path(input) },
+        new Path(tempDir), r, k, p, reduceTasks);
+    solver.setMinSplitSize(minSplitSize);
+    solver.setComputeU(computeU);
+    solver.setComputeV(computeV);
+    solver.setcUHalfSigma(cUHalfSigma);
+    solver.setcVHalfSigma(cVHalfSigma);
+
+    solver.run();
+
+    // housekeeping
+    FileSystem fs = FileSystem.get(conf);
+
+    Path outPath = new Path(output);
+    fs.mkdirs(outPath);
+
+    SequenceFile.Writer sigmaW = SequenceFile.createWriter(fs, conf, new Path(
+        outPath, "sigma"), NullWritable.class, VectorWritable.class);
+    try {
+      VectorWritable sValues = new VectorWritable(new DenseVector(
+          Arrays.copyOf(solver.getSingularValues(), k), true));
+      sigmaW.append(NullWritable.get(), sValues);
+
+    } finally {
+      sigmaW.close();
     }
-    
-    public static int  main(String[] args) throws Exception {
-   		return ToolRunner.run(new SSVDCli(), args);
+
+    if (computeU) {
+      FileStatus[] uFiles = fs.globStatus(new Path(solver.getUPath()));
+      if (uFiles != null)
+        for (FileStatus uf : uFiles)
+          fs.rename(uf.getPath(), outPath);
     }
+    if (computeV) {
+      FileStatus[] vFiles = fs.globStatus(new Path(solver.getVPath()));
+      if (vFiles != null)
+        for (FileStatus vf : vFiles)
+          fs.rename(vf.getPath(), outPath);
+
+    }
+    return 0;
+  }
+
+  public static int main(String[] args) throws Exception {
+    return ToolRunner.run(new SSVDCli(), args);
+  }
 
 }

@@ -54,8 +54,8 @@ import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
  *
  */
 public class QJob {
-	
-	public static final String 		 	PROP_OMEGA_SEED="ssvd.omegaseed";
+
+  public static final String 		 	PROP_OMEGA_SEED="ssvd.omegaseed";
 	public static final String 			PROP_K = "ssvd.k";
 	public static final String 	        PROP_P = "ssvd.p";
 	public static final String          PROP_AROWBLOCK_SIZE="ssvd.arowblock.size";
