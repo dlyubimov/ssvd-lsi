@@ -22,7 +22,7 @@ import java.io.IOException;
 import org.apache.mahout.math.Vector;
 
 public interface PartialRowEmitter {
-	
-	public void emitRow ( int rowNum, Vector row ) throws IOException ;
+
+  public void emitRow(int rowNum, Vector row) throws IOException;
 
 }
