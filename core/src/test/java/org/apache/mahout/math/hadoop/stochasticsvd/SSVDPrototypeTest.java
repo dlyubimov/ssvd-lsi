@@ -20,14 +20,22 @@ package org.apache.mahout.math.hadoop.stochasticsvd;
 import java.util.Random;
 
 import junit.framework.Assert;
-import junit.framework.TestCase;
 
+import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.DoubleFunction;
+import org.junit.Test;
 
-public class SSVDPrototypeTest extends TestCase {
+/** 
+ * Tests parts of of Stochastic SVD solver code in local mode
+ * using "prototype" code (class that simulates processes 
+ * actually happenning in the MR jobs).
+ * 
+ * 
+ */
+public class SSVDPrototypeTest extends MahoutTestCase {
 
   private static double s_scale = 1000;
   private static double s_epsilon = 1e-10;
@@ -36,6 +44,7 @@ public class SSVDPrototypeTest extends TestCase {
     SSVDPrototype.main(null);
   }
 
+  @Test
   public void testGivensQR() throws Exception {
     // DenseMatrix m = new DenseMatrix(dims<<2,dims);
     DenseMatrix m = new DenseMatrix(3, 3);

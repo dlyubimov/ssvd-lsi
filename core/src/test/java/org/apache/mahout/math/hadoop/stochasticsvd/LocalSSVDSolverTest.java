@@ -23,7 +23,6 @@ import java.util.LinkedList;
 import java.util.Random;
 
 import junit.framework.Assert;
-import junit.framework.TestCase;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -32,14 +31,24 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.io.compress.DefaultCodec;
+import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.SingularValueDecomposition;
 import org.apache.mahout.math.VectorWritable;
 
-public class LocalSSVDSolverTest extends TestCase {
+/**
+ * 
+ * Tests SSVD solver with a made-up data running hadoop 
+ * solver in a local mode. It requests full-rank SSVD and 
+ * then compares singular values to that of Colt's SVD 
+ * asserting epsilon(precision) 1e-10 or whatever most recent 
+ * value configured. 
+ * 
+ */
+public class LocalSSVDSolverTest extends MahoutTestCase {
 
-  private static final double s_epsilon = 1.0E-5d;
+  private static final double s_epsilon = 1.0E-10d;
 
   public void testSSVDSolver() throws Exception {
 
