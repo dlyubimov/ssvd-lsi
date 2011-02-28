@@ -41,7 +41,6 @@ import org.apache.mahout.math.VarIntWritable;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.DistributedRowMatrix;
-import org.apache.mahout.math.hadoop.DistributedRowMatrix.MatrixEntryWritable;
 import org.apache.mahout.math.hadoop.similarity.vector.DistributedVectorSimilarity;
 
 /**
@@ -82,6 +81,10 @@ public class RowSimilarityJob extends AbstractJob {
 
   private static final int DEFAULT_MAX_SIMILARITIES_PER_ROW = 100;
 
+  public static enum Counter {
+    COOCCURRENCES, SIMILAR_ROWS
+  }
+
   public static void main(String[] args) throws Exception {
     ToolRunner.run(new RowSimilarityJob(), args);
   }
@@ -92,8 +95,8 @@ public class RowSimilarityJob extends AbstractJob {
     addInputOption();
     addOutputOption();
     addOption("numberOfColumns", "r", "Number of columns in the input matrix");
-    addOption("similarityClassname", "s", "Name of distributed similarity class to instantiate, alternatively use " + 
-        "one of the predefined similarities (" + SimilarityType.listEnumNames() + ')');
+    addOption("similarityClassname", "s", "Name of distributed similarity class to instantiate, alternatively use "
+        + "one of the predefined similarities (" + SimilarityType.listEnumNames() + ')');
     addOption("maxSimilaritiesPerRow", "m", "Number of maximum similarities per row (default: "
               + DEFAULT_MAX_SIMILARITIES_PER_ROW + ')', String.valueOf(DEFAULT_MAX_SIMILARITIES_PER_ROW));
 
@@ -148,7 +151,7 @@ public class RowSimilarityJob extends AbstractJob {
                                Cooccurrence.class,
                                SimilarityReducer.class,
                                SimilarityMatrixEntryKey.class,
-                               MatrixEntryWritable.class,
+                               DistributedRowMatrix.MatrixEntryWritable.class,
                                SequenceFileOutputFormat.class);
 
       Configuration pairwiseConf = pairwiseSimilarity.getConfiguration();
@@ -163,7 +166,7 @@ public class RowSimilarityJob extends AbstractJob {
                                SequenceFileInputFormat.class,
                                Mapper.class,
                                SimilarityMatrixEntryKey.class,
-                               MatrixEntryWritable.class,
+                               DistributedRowMatrix.MatrixEntryWritable.class,
                                EntriesToVectorsReducer.class,
                                IntWritable.class,
                                VectorWritable.class,
@@ -204,7 +207,7 @@ public class RowSimilarityJob extends AbstractJob {
 
     @Override
     protected void map(IntWritable row, VectorWritable vectorWritable, Context ctx)
-        throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
 
       Vector v = vectorWritable.get();
       double weight = similarity.weight(v);
@@ -227,7 +230,7 @@ public class RowSimilarityJob extends AbstractJob {
 
     @Override
     protected void reduce(VarIntWritable column, Iterable<WeightedOccurrence> weightedOccurrences, Context ctx)
-        throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
 
       List<WeightedOccurrence> collectedWeightedOccurrences = new ArrayList<WeightedOccurrence>();
       for (WeightedOccurrence weightedOccurrence : weightedOccurrences) {
@@ -247,13 +250,14 @@ public class RowSimilarityJob extends AbstractJob {
 
     @Override
     protected void map(VarIntWritable column, WeightedOccurrenceArray weightedOccurrenceArray, Context ctx)
-        throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
 
       WeightedOccurrence[] weightedOccurrences = weightedOccurrenceArray.getWeightedOccurrences();
 
       WeightedRowPair rowPair = new WeightedRowPair();
       Cooccurrence coocurrence = new Cooccurrence();
 
+      int numPairs = 0;
       for (int n = 0; n < weightedOccurrences.length; n++) {
         int rowA = weightedOccurrences[n].getRow();
         double weightA = weightedOccurrences[n].getWeight();
@@ -262,11 +266,17 @@ public class RowSimilarityJob extends AbstractJob {
           int rowB = weightedOccurrences[m].getRow();
           double weightB = weightedOccurrences[m].getWeight();
           double valueB = weightedOccurrences[m].getValue();
-          rowPair.set(rowA, rowB, weightA, weightB);
+          if(rowA <= rowB){
+        	  rowPair.set(rowA, rowB, weightA, weightB);
+          } else {
+        	  rowPair.set(rowB, rowA, weightB, weightA);
+          }
           coocurrence.set(column.get(), valueA, valueB);
           ctx.write(rowPair, coocurrence);
+          numPairs++;
         }
       }
+      ctx.getCounter(Counter.COOCCURRENCES).increment(numPairs);
     }
   }
 
@@ -274,7 +284,7 @@ public class RowSimilarityJob extends AbstractJob {
    * computes the pairwise similarities
    */
   public static class SimilarityReducer
-      extends Reducer<WeightedRowPair,Cooccurrence,SimilarityMatrixEntryKey, MatrixEntryWritable> {
+      extends Reducer<WeightedRowPair,Cooccurrence,SimilarityMatrixEntryKey, DistributedRowMatrix.MatrixEntryWritable> {
 
     private DistributedVectorSimilarity similarity;
     private int numberOfColumns;
@@ -291,7 +301,7 @@ public class RowSimilarityJob extends AbstractJob {
 
     @Override
     protected void reduce(WeightedRowPair rowPair, Iterable<Cooccurrence> cooccurrences, Context ctx)
-        throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
 
       int rowA = rowPair.getRowA();
       int rowB = rowPair.getRowB();
@@ -299,8 +309,9 @@ public class RowSimilarityJob extends AbstractJob {
           rowPair.getWeightB(), numberOfColumns);
 
       if (!Double.isNaN(similarityValue)) {
+        ctx.getCounter(Counter.SIMILAR_ROWS).increment(1);
         SimilarityMatrixEntryKey key = new SimilarityMatrixEntryKey();
-        MatrixEntryWritable entry = new MatrixEntryWritable();
+        DistributedRowMatrix.MatrixEntryWritable entry = new DistributedRowMatrix.MatrixEntryWritable();
         entry.setVal(similarityValue);
 
         entry.setRow(rowA);
@@ -319,10 +330,10 @@ public class RowSimilarityJob extends AbstractJob {
   }
 
   /**
-   * collects all {@link MatrixEntryWritable} for each column and creates a {@link VectorWritable}
+   * collects all {@link DistributedRowMatrix.MatrixEntryWritable} for each column and creates a {@link VectorWritable}
    */
   public static class EntriesToVectorsReducer
-      extends Reducer<SimilarityMatrixEntryKey, MatrixEntryWritable,IntWritable,VectorWritable> {
+      extends Reducer<SimilarityMatrixEntryKey, DistributedRowMatrix.MatrixEntryWritable,IntWritable,VectorWritable> {
 
     private int maxSimilaritiesPerRow;
 
@@ -336,11 +347,12 @@ public class RowSimilarityJob extends AbstractJob {
     }
 
     @Override
-    protected void reduce(SimilarityMatrixEntryKey key, Iterable<MatrixEntryWritable> entries, Context ctx)
-        throws IOException, InterruptedException {
+    protected void reduce(SimilarityMatrixEntryKey key,
+                          Iterable<DistributedRowMatrix.MatrixEntryWritable> entries,
+                          Context ctx) throws IOException, InterruptedException {
       RandomAccessSparseVector temporaryVector = new RandomAccessSparseVector(Integer.MAX_VALUE, maxSimilaritiesPerRow);
       int similaritiesSet = 0;
-      for (MatrixEntryWritable entry : entries) {
+      for (DistributedRowMatrix.MatrixEntryWritable entry : entries) {
         temporaryVector.setQuick(entry.getCol(), entry.getVal());
         if (++similaritiesSet == maxSimilaritiesPerRow) {
           break;

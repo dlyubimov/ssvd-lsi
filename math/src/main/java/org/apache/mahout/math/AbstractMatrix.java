@@ -387,11 +387,11 @@ public abstract class AbstractMatrix implements Matrix {
   }
 
   public Matrix divide(double x) {
-    Matrix result = clone();
+    Matrix result = like();
     int[] c = size();
     for (int row = 0; row < c[ROW]; row++) {
       for (int col = 0; col < c[COL]; col++) {
-        result.setQuick(row, col, result.getQuick(row, col) / x);
+        result.setQuick(row, col, getQuick(row, col) / x);
       }
     }
     return result;
@@ -417,10 +417,10 @@ public abstract class AbstractMatrix implements Matrix {
     if (c[COL] != o[COL]) {
       throw new CardinalityException(c[COL], o[COL]);
     }
-    Matrix result = clone();
+    Matrix result = like();
     for (int row = 0; row < c[ROW]; row++) {
       for (int col = 0; col < c[COL]; col++) {
-        result.setQuick(row, col, result.getQuick(row, col)
+        result.setQuick(row, col, getQuick(row, col)
             - other.getQuick(row, col));
       }
     }
@@ -428,11 +428,11 @@ public abstract class AbstractMatrix implements Matrix {
   }
 
   public Matrix plus(double x) {
-    Matrix result = clone();
+    Matrix result = like();
     int[] c = size();
     for (int row = 0; row < c[ROW]; row++) {
       for (int col = 0; col < c[COL]; col++) {
-        result.setQuick(row, col, result.getQuick(row, col) + x);
+        result.setQuick(row, col, getQuick(row, col) + x);
       }
     }
     return result;
@@ -447,10 +447,10 @@ public abstract class AbstractMatrix implements Matrix {
     if (c[COL] != o[COL]) {
       throw new CardinalityException(c[COL], o[COL]);
     }
-    Matrix result = clone();
+    Matrix result = like();
     for (int row = 0; row < c[ROW]; row++) {
       for (int col = 0; col < c[COL]; col++) {
-        result.setQuick(row, col, result.getQuick(row, col)
+        result.setQuick(row, col, getQuick(row, col)
             + other.getQuick(row, col));
       }
     }
@@ -483,11 +483,11 @@ public abstract class AbstractMatrix implements Matrix {
   }
 
   public Matrix times(double x) {
-    Matrix result = clone();
+    Matrix result = like();
     int[] c = size();
     for (int row = 0; row < c[ROW]; row++) {
       for (int col = 0; col < c[COL]; col++) {
-        result.setQuick(row, col, result.getQuick(row, col) * x);
+        result.setQuick(row, col, getQuick(row, col) * x);
       }
     }
     return result;
@@ -608,7 +608,7 @@ public abstract class AbstractMatrix implements Matrix {
 
     public Iterator<Element> iterator() {
       return new Iterator<Element>() {
-        private int i = 0;
+        private int i;
         public boolean hasNext() {
           return i < size();
         }

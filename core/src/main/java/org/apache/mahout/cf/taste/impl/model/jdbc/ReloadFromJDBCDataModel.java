@@ -48,7 +48,7 @@ public final class ReloadFromJDBCDataModel implements DataModel {
   private final RefreshHelper refreshHelper;
 
   public ReloadFromJDBCDataModel(JDBCDataModel delegate) throws TasteException {
-    Preconditions.checkNotNull(delegate);
+    Preconditions.checkNotNull(delegate, "Delegate cannot be null");
     this.delegate = delegate;
     refreshHelper = new RefreshHelper(new Callable<Void>() {
       @Override
@@ -73,9 +73,10 @@ public final class ReloadFromJDBCDataModel implements DataModel {
     try {
       // Load new in-memory representation,
       log.info("Loading new JDBC delegate data...");
-      DataModel newDelegateInMemory = delegate.hasPreferenceValues() ?
-          new GenericDataModel(delegate.exportWithPrefs()) :
-          new GenericBooleanPrefDataModel(delegate.exportWithIDsOnly());
+      DataModel newDelegateInMemory =
+          delegate.hasPreferenceValues()
+          ? new GenericDataModel(delegate.exportWithPrefs())
+          : new GenericBooleanPrefDataModel(delegate.exportWithIDsOnly());
       // and then swap to it.
       log.info("New data loaded.");
       delegateInMemory = newDelegateInMemory;

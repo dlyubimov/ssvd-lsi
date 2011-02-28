@@ -262,8 +262,7 @@ public class SplitBayesInput {
   public void splitDirectory(Path inputDir) throws IOException {
     if (fs.getFileStatus(inputDir) == null) {
       throw new IOException(inputDir + " does not exist");
-    }
-    else if (!fs.getFileStatus(inputDir).isDir()) {
+    } else if (!fs.getFileStatus(inputDir).isDir()) {
       throw new IOException(inputDir + " is not a directory");
     }
 
@@ -283,8 +282,7 @@ public class SplitBayesInput {
   public void splitFile(Path inputFile) throws IOException {
     if (fs.getFileStatus(inputFile) == null) {
       throw new IOException(inputFile + " does not exist");
-    }
-    else if (fs.getFileStatus(inputFile).isDir()) {
+    } else if (fs.getFileStatus(inputFile).isDir()) {
       throw new IOException(inputFile + " is a directory");
     }
     
@@ -348,39 +346,44 @@ public class SplitBayesInput {
     Writer trainingWriter = new OutputStreamWriter(fs.create(trainingOutputFile), charset);
     Writer testWriter     = new OutputStreamWriter(fs.create(testOutputFile), charset);
 
-    int pos = 0;
     int trainCount = 0;
     int testCount = 0;
 
-    String line;
-    while ((line = reader.readLine()) != null) {
-      pos++;
+    try {
 
-      Writer writer;
-      if (testRandomSelectionPct > 0) { // Randomly choose
-        writer =  randomSel.get(pos) ? testWriter : trainingWriter;
-      } else { // Choose based on location
-        writer = pos > testSplitStart ? testWriter : trainingWriter;
-      }
+      String line;
+      int pos = 0;
+      while ((line = reader.readLine()) != null) {
+        pos++;
 
-      if (writer == testWriter) {
-        if (testCount >= testSplitSize) {
-          writer = trainingWriter;
-        } else {
-          testCount++;
+        Writer writer;
+        if (testRandomSelectionPct > 0) { // Randomly choose
+          writer =  randomSel.get(pos) ? testWriter : trainingWriter;
+        } else { // Choose based on location
+          writer = pos > testSplitStart ? testWriter : trainingWriter;
         }
+
+        if (writer == testWriter) {
+          if (testCount >= testSplitSize) {
+            writer = trainingWriter;
+          } else {
+            testCount++;
+          }
+        }
+
+        if (writer == trainingWriter) {
+          trainCount++;
+        }
+
+        writer.write(line);
+        writer.write('\n');
       }
-      
-      if (writer == trainingWriter) {
-        trainCount++;
-      }
-      
-      writer.write(line);
-      writer.write('\n');
+
+    } finally {
+      IOUtils.quietClose(reader);
+      IOUtils.quietClose(trainingWriter);
+      IOUtils.quietClose(testWriter);
     }
-    
-    IOUtils.quietClose(trainingWriter);
-    IOUtils.quietClose(testWriter);
     
     log.info("file: {}, input: {} train: {}, test: {} starting at {}",
              new Object[] {inputFile.getName(), lineCount, trainCount, testCount, testSplitStart});
@@ -553,7 +556,8 @@ public class SplitBayesInput {
                                 "%s is not a directory", testOutputDirectory);
   }
   
-  /** Count the lines in the file specified as returned by <code>BufferedReader.readLine()</code>
+  /**
+   * Count the lines in the file specified as returned by <code>BufferedReader.readLine()</code>
    * 
    * @param inputFile 
    *   the file whose lines will be counted
