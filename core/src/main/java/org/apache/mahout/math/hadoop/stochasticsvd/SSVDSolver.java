@@ -54,7 +54,7 @@ import org.apache.mahout.math.ssvd.EigenSolverWrapper;
  * in comparison to other methods. However, non-hadoop differentiating 
  * characteristics of this method are thought to be : 
  * <LI> "faster" and precision is traded off in favor of speed. However, 
- * there's lever in terms of "oversampling parameter" k. Higher values of k 
+ * there's lever in terms of "oversampling parameter" p. Higher values of p 
  * produce better precision but are trading off speed (and minimum RAM requirement).
  * This also means that this method is almost guaranteed to be less precise 
  * than Lanczos unless full rank SVD decomposition is sought. 
@@ -62,7 +62,8 @@ import org.apache.mahout.math.ssvd.EigenSolverWrapper;
  * (not confirmed by benchmark at this time)
  * <P><P>
  * 
- * Specifically regarding this implementation, <i>I think</i> couple of other differentiating points are: 
+ * Specifically in regards to this implementation, <i>I think</i> 
+ * couple of other differentiating points are: 
  * <LI> no need to specify input matrix height or width in command line, it is what it 
  * gets to be. 
  * <LI> supports any Writable as DRM row keys and copies them to correspondent rows 
