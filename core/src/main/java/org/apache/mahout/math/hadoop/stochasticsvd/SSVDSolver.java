@@ -229,10 +229,10 @@ public class SSVDSolver {
       BtJob.run(conf, inputPath, qPath, btPath, minSplitSize, k, p,
           reduceTasks, labelType);
 
-      BBtJob.run(conf, new Path(btPath, BtJob.OUTPUT_Bt + "-*"), bbtPath, 1);
+      BBtJob.run(conf, new Path(btPath, BtJob.OUTPUT_BT + "-*"), bbtPath, 1);
 
       UpperTriangular bbt = loadUpperTriangularMatrix(fs, new Path(bbtPath,
-          BBtJob.OUTPUT_BBt + "-*"), conf);
+          BBtJob.OUTPUT_BBT + "-*"), conf);
 
       // convert bbt to something our eigensolver could understand
       assert bbt.columnSize() == k + p;
@@ -298,7 +298,7 @@ public class SSVDSolver {
 
       if (computeV)
         (vjob = new VJob()).start(conf,
-            new Path(btPath, BtJob.OUTPUT_Bt + "-*"), uHatPath, svPath, vPath,
+            new Path(btPath, BtJob.OUTPUT_BT + "-*"), uHatPath, svPath, vPath,
             k, reduceTasks, cVHalfSigma);
 
       if (ujob != null) {

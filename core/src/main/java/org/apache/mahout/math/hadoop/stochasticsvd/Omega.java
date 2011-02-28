@@ -50,27 +50,26 @@ public class Omega {
   /**
    * compute YRow=ARow*Omega.
    * 
-   * @param ARow
+   * @param aRow
    *          row of matrix A (size n)
-   * @param YRow
+   * @param yRow
    *          row of matrix Y (result) must be pre-allocated to size of (k+p)
    */
-  public void computeYRow(Vector ARow, double[] YRow) {
-    assert YRow.length == kp;
+  public void computeYRow(Vector aRow, double[] yRow) {
+    assert yRow.length == kp;
 
-    Arrays.fill(YRow, 0);
-    if (ARow instanceof SequentialAccessSparseVector) {
+    Arrays.fill(yRow, 0);
+    if (aRow instanceof SequentialAccessSparseVector) {
       int j = 0;
-      for (Element el : ARow) {
-        accumDots(j, el.get(), YRow);
+      for (Element el : aRow) {
+        accumDots(j, el.get(), yRow);
         j++;
       }
-    }
-
-    else {
-      int n = ARow.size();
+      
+    } else {
+      int n = aRow.size();
       for (int j = 0; j < n; j++)
-        accumDots(j, ARow.getQuick(j), YRow);
+        accumDots(j, aRow.getQuick(j), yRow);
     }
 
   }

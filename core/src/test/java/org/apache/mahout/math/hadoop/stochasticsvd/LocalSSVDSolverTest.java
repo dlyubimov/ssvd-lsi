@@ -36,6 +36,7 @@ import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.SingularValueDecomposition;
 import org.apache.mahout.math.VectorWritable;
+import org.junit.Test;
 
 /**
  * 
@@ -50,6 +51,7 @@ public class LocalSSVDSolverTest extends MahoutTestCase {
 
   private static final double s_epsilon = 1.0E-10d;
 
+  @Test
   public void testSSVDSolver() throws Exception {
 
     Configuration conf = new Configuration();

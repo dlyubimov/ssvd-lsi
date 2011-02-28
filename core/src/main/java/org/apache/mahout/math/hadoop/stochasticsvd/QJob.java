@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -64,7 +65,7 @@ public class QJob {
   public static final String OUTPUT_R = "R";
   public static final String OUTPUT_QHAT = "QHat";
   // public static final String OUTPUT_Q="Q";
-  public static final String OUTPUT_Bt = "Bt";
+  public static final String OUTPUT_BT = "Bt";
 
   public static class QJobKeyWritable implements
       WritableComparable<QJobKeyWritable> {
@@ -104,7 +105,7 @@ public class QJob {
 
     private int kp;
     private Omega omega;
-    private ArrayList<double[]> yLookahead;
+    private List<double[]> yLookahead;
     private GivensThinSolver qSolver;
     private int blockCnt;
     // private int m_reducerCount;
@@ -116,7 +117,7 @@ public class QJob {
     private LinkedList<Closeable> closeables = new LinkedList<Closeable>();
     private SequenceFile.Writer tempQw;
     private Path tempQPath;
-    private ArrayList<UpperTriangular> rSubseq = new ArrayList<UpperTriangular>();
+    private List<UpperTriangular> rSubseq = new ArrayList<UpperTriangular>();
 
     private void flushSolver(Context context) throws IOException,
         InterruptedException {
@@ -161,11 +162,11 @@ public class QJob {
         InterruptedException {
       qSolver = null; // release mem
       FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
-      SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs,
+      SequenceFile.Reader tempQr = new SequenceFile.Reader(localFs,
           tempQPath, ctx.getConfiguration());
-      closeables.addFirst(m_tempQr);
+      closeables.addFirst(tempQr);
       int qCnt = 0;
-      while (m_tempQr.next(tempKey, value)) {
+      while (tempQr.next(tempKey, value)) {
         value
             .setBlock(GivensThinSolver.computeQtHat(value.getBlock(), qCnt,
                 new GivensThinSolver.DeepCopyUTIterator(rSubseq.iterator())));
@@ -191,7 +192,7 @@ public class QJob {
 
     @Override
     protected void map(Writable key, VectorWritable value, Context context)
-        throws IOException, InterruptedException {
+      throws IOException, InterruptedException {
       double[] yRow = null;
       if (yLookahead.size() == kp) {
         if (qSolver.isFull()) {

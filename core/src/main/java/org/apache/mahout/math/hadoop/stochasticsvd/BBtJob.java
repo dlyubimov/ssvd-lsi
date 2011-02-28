@@ -43,7 +43,7 @@ import org.apache.mahout.math.VectorWritable;
  */
 public class BBtJob {
 
-  public static final String OUTPUT_BBt = "part";
+  public static final String OUTPUT_BBT = "part";
 
   public static void run(Configuration conf, Path btPath, Path outputPath,
       int numReduceTasks) throws IOException, ClassNotFoundException,
@@ -73,7 +73,7 @@ public class BBtJob {
     SequenceFileOutputFormat.setOutputCompressionType(job,
         CompressionType.BLOCK);
     SequenceFileOutputFormat.setOutputCompressorClass(job, DefaultCodec.class);
-    job.getConfiguration().set("mapreduce.output.basename", OUTPUT_BBt);
+    job.getConfiguration().set("mapreduce.output.basename", OUTPUT_BBT);
 
     // run
     job.submit();

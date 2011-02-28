@@ -135,7 +135,7 @@ public final class IOUtils {
    * 
    */
   public static void closeAll(Collection<? extends Closeable> closeables)
-      throws IOException {
+    throws IOException {
     Throwable lastThr = null;
 
     for (Closeable closeable : closeables) {
@@ -158,9 +158,8 @@ public final class IOUtils {
         throw (RuntimeException) lastThr;
       } else if (lastThr instanceof Error) {
         throw (Error) lastThr;
-      }
-      // should not happen
-      else {
+      } else {
+        // should not happen
         throw (IOException) new IOException("Unexpected exception during close")
             .initCause(lastThr);
       }

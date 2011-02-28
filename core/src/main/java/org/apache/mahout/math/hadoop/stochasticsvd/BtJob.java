@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -53,17 +54,17 @@ import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobKeyWritable;
 public class BtJob {
 
   public static final String OUTPUT_Q = "Q";
-  public static final String OUTPUT_Bt = "part";
+  public static final String OUTPUT_BT = "part";
   public static final String PROP_QJOB_PATH = "ssvd.QJob.path";
 
   public static class BtMapper extends
       Mapper<Writable, VectorWritable, IntWritable, VectorWritable> {
 
     private SequenceFile.Reader qInput;
-    private ArrayList<UpperTriangular> mRs = new ArrayList<UpperTriangular>();
+    private List<UpperTriangular> mRs = new ArrayList<UpperTriangular>();
     private int blockNum;
     private double[][] mQt;
-    private int cnt ;
+    private int cnt;
     private int r;
     private MultipleOutputs outputs;
     private IntWritable btKey = new IntWritable();
@@ -148,11 +149,11 @@ public class BtJob {
                                                                         // labels.
 
       int n = aRow.size();
-      Vector m_btRow = btValue.get();
+      Vector btRow = btValue.get();
       for (int i = 0; i < n; i++) {
         double mul = aRow.getQuick(i);
         for (int j = 0; j < kp; j++)
-          m_btRow.setQuick(j, mul * qRow.getQuick(j));
+          btRow.setQuick(j, mul * qRow.getQuick(j));
         btKey.set(i);
         context.write(btKey, btValue);
       }
@@ -214,8 +215,8 @@ public class BtJob {
   public static class OuterProductReducer extends
       Reducer<IntWritable, VectorWritable, IntWritable, VectorWritable> {
 
-    private VectorWritable m_oValue = new VectorWritable();
-    private DenseVector m_accum;
+    private VectorWritable oValue = new VectorWritable();
+    private DenseVector accum;
 
     @Override
     protected void reduce(IntWritable key, Iterable<VectorWritable> values,
@@ -223,15 +224,15 @@ public class BtJob {
       Iterator<VectorWritable> vwIter = values.iterator();
 
       Vector vec = vwIter.next().get();
-      if (m_accum == null || m_accum.size() != vec.size()) {
-        m_accum = new DenseVector(vec);
-        m_oValue.set(m_accum);
+      if (accum == null || accum.size() != vec.size()) {
+        accum = new DenseVector(vec);
+        oValue.set(accum);
       } else
-        m_accum.assign(vec);
+        accum.assign(vec);
 
       while (vwIter.hasNext())
-        m_accum.addAll(vwIter.next().get());
-      ctx.write(key, m_oValue);
+        accum.addAll(vwIter.next().get());
+      ctx.write(key, oValue);
     }
 
   }
@@ -262,7 +263,7 @@ public class BtJob {
     // QJobKeyWritable.class,QJobValueWritable.class);
 
     // Warn: tight hadoop integration here:
-    job.getConfiguration().set("mapreduce.output.basename", OUTPUT_Bt);
+    job.getConfiguration().set("mapreduce.output.basename", OUTPUT_BT);
     SequenceFileOutputFormat.setCompressOutput(job, true);
     SequenceFileOutputFormat.setOutputCompressorClass(job, DefaultCodec.class);
     SequenceFileOutputFormat.setOutputCompressionType(job,

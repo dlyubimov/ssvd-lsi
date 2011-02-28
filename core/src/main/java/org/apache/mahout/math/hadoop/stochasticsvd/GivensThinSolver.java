@@ -39,13 +39,16 @@ public class GivensThinSolver {
 
   // private double[][] m_rTilde;
   // private Vector m_aRowV;
-  private double[] vARow, vQtRow;
+  private double[] vARow;
+  private double[] vQtRow;
   // private UpperTriangular m_rTilde;
   // private TriangularRowView m_rTildeRowView, m_rTildeRowView2;
   private double[][] mQt;
   private double[][] mR;
-  private int qtStartRow, rStartRow;
-  private int m, n; // m-row cnt, n- column count, m>=n
+  private int qtStartRow;
+  private int rStartRow;
+  private int m;
+  private int n; // m-row cnt, n- column count, m>=n
   private int cnt;
   private double[] cs = new double[2];
 
@@ -158,23 +161,23 @@ public class GivensThinSolver {
       System.arraycopy(aRow, 0, vARow, 0, n);
 
       if (height > 0) {
-        givens(vARow[0], _getRRow(0)[0], cs);
-        applyGivensInPlace(cs[0], cs[1], vARow, _getRRow(0), 0, n);
-        applyGivensInPlace(cs[0], cs[1], vQtRow, _getQtRow(0), 0, m);
+        givens(vARow[0], getRRow(0)[0], cs);
+        applyGivensInPlace(cs[0], cs[1], vARow, getRRow(0), 0, n);
+        applyGivensInPlace(cs[0], cs[1], vQtRow, getQtRow(0), 0, m);
       }
 
       for (int i = 1; i < height; i++) {
-        givens(_getRRow(i - 1)[i], _getRRow(i)[i], cs);
-        applyGivensInPlace(cs[0], cs[1], _getRRow(i - 1), _getRRow(i), i,
+        givens(getRRow(i - 1)[i], getRRow(i)[i], cs);
+        applyGivensInPlace(cs[0], cs[1], getRRow(i - 1), getRRow(i), i,
             n - i);
-        applyGivensInPlace(cs[0], cs[1], _getQtRow(i - 1), _getQtRow(i), 0,
+        applyGivensInPlace(cs[0], cs[1], getQtRow(i - 1), getQtRow(i), 0,
             m);
       }
       // push qt and r-tilde 1 row down
       // just sqp the references to reduce GC churning
-      _pushQtDown();
-      double[] swap = _getQtRow(0);
-      _setQtRow(0, vQtRow);
+      pushQtDown();
+      double[] swap = getQtRow(0);
+      setQtRow(0, vQtRow);
       vQtRow = swap;
 
       // triangular push -- obviously, less efficient than
@@ -189,9 +192,9 @@ public class GivensThinSolver {
       // }
       // for (int i = 0; i < m_n; i++)
       // m_rTilde.setQuick(0, i, m_aRow[i]);
-      _pushRDown();
-      swap = _getRRow(0);
-      _setRRow(0, vARow);
+      pushRDown();
+      swap = getRRow(0);
+      setRRow(0, vARow);
       vARow = swap;
 
     } finally {
@@ -199,28 +202,28 @@ public class GivensThinSolver {
     }
   }
 
-  private double[] _getQtRow(int row) {
+  private double[] getQtRow(int row) {
 
     return mQt[(row += qtStartRow) >= n ? row - n : row];
   }
 
-  private void _setQtRow(int row, double[] qtRow) {
+  private void setQtRow(int row, double[] qtRow) {
     mQt[(row += qtStartRow) >= n ? row - n : row] = qtRow;
   }
 
-  private void _pushQtDown() {
+  private void pushQtDown() {
     qtStartRow = qtStartRow == 0 ? n - 1 : qtStartRow - 1;
   }
 
-  private double[] _getRRow(int row) {
+  private double[] getRRow(int row) {
     return mR[(row += rStartRow) >= n ? row - n : row];
   }
 
-  private void _setRRow(int row, double[] rrow) {
+  private void setRRow(int row, double[] rrow) {
     mR[(row += rStartRow) >= n ? row - n : row] = rrow;
   }
 
-  private void _pushRDown() {
+  private void pushRDown() {
     rStartRow = rStartRow == 0 ? n - 1 : rStartRow - 1;
   }
 
@@ -229,7 +232,7 @@ public class GivensThinSolver {
   public UpperTriangular getRTilde() {
     UpperTriangular packedR = new UpperTriangular(n);
     for (int i = 0; i < n; i++)
-      packedR.assignRow(i, _getRRow(i));
+      packedR.assignRow(i, getRRow(i));
     return packedR;
   }
 
@@ -323,8 +326,9 @@ public class GivensThinSolver {
   }
 
   public static void mergeR(UpperTriangular r1, UpperTriangular r2) {
-    TriangularRowView r1Row = new TriangularRowView(r1), r2Row = new TriangularRowView(
-        r2);
+    TriangularRowView r1Row = new TriangularRowView(r1);
+    TriangularRowView r2Row = new TriangularRowView(r2);
+    
     int kp = r1Row.size();
     assert kp == r2Row.size();
 
@@ -356,8 +360,8 @@ public class GivensThinSolver {
 
   public static void mergeRonQ(UpperTriangular r1, UpperTriangular r2,
       double[][] qt1, double[][] qt2) {
-    TriangularRowView r1Row = new TriangularRowView(r1), r2Row = new TriangularRowView(
-        r2);
+    TriangularRowView r1Row = new TriangularRowView(r1);
+    TriangularRowView r2Row = new TriangularRowView(r2);
     int kp = r1Row.size();
     assert kp == r2Row.size();
     assert kp == qt1.length;
@@ -471,9 +475,9 @@ public class GivensThinSolver {
     int n = qt.length;
     int rank = 0;
     for (int i = 0; i < n; i++) {
-      Vector e_i = new DenseVector(qt[i], true);
+      Vector ei = new DenseVector(qt[i], true);
 
-      double norm = e_i.norm(2);
+      double norm = ei.norm(2);
 
       if (Math.abs(1 - norm) < epsilon)
         rank++;
@@ -481,8 +485,8 @@ public class GivensThinSolver {
         return false; // not a rank deficiency, either
 
       for (int j = 0; j <= i; j++) {
-        Vector e_j = new DenseVector(qt[j], true);
-        double dot = e_i.dot(e_j);
+        Vector ej = new DenseVector(qt[j], true);
+        double dot = ei.dot(ej);
         if (!(Math.abs((i == j && rank > j ? 1 : 0) - dot) < epsilon))
           return false;
       }
@@ -496,13 +500,13 @@ public class GivensThinSolver {
     int n = qtHats.iterator().next().length;
     int rank = 0;
     for (int i = 0; i < n; i++) {
-      List<Vector> e_i = new ArrayList<Vector>();
+      List<Vector> ei = new ArrayList<Vector>();
       // Vector e_i=new DenseVector (qt[i],true);
       for (double[][] qtHat : qtHats)
-        e_i.add(new DenseVector(qtHat[i], true));
+        ei.add(new DenseVector(qtHat[i], true));
 
       double norm = 0;
-      for (Vector v : e_i)
+      for (Vector v : ei)
         norm += v.dot(v);
       norm = Math.sqrt(norm);
       if (Math.abs(1 - norm) < epsilon)
@@ -511,14 +515,14 @@ public class GivensThinSolver {
         return false; // not a rank deficiency, either
 
       for (int j = 0; j <= i; j++) {
-        List<Vector> e_j = new ArrayList<Vector>();
+        List<Vector> ej = new ArrayList<Vector>();
         for (double[][] qtHat : qtHats)
-          e_j.add(new DenseVector(qtHat[j], true));
+          ej.add(new DenseVector(qtHat[j], true));
 
         // Vector e_j = new DenseVector ( qt[j], true);
         double dot = 0;
-        for (int k = 0; k < e_i.size(); k++)
-          dot += e_i.get(k).dot(e_j.get(k));
+        for (int k = 0; k < ei.size(); k++)
+          dot += ei.get(k).dot(ej.get(k));
         if (!(Math.abs((i == j && rank > j ? 1 : 0) - dot) < epsilon))
           return false;
       }
@@ -528,17 +532,17 @@ public class GivensThinSolver {
   }
 
   private static class TriangularRowView extends AbstractVector {
-    private UpperTriangular m_viewed;
-    private int m_rowNum;
+    private UpperTriangular viewed;
+    private int rowNum;
 
     public TriangularRowView(UpperTriangular viewed) {
       super(viewed.columnSize());
-      m_viewed = viewed;
+      this.viewed = viewed;
 
     }
 
     TriangularRowView setViewedRow(int row) {
-      m_rowNum = row;
+      rowNum = row;
       return this;
     }
 
@@ -564,7 +568,7 @@ public class GivensThinSolver {
 
     @Override
     public double getQuick(int index) {
-      return m_viewed.getQuick(m_rowNum, index);
+      return viewed.getQuick(rowNum, index);
     }
 
     @Override
@@ -574,7 +578,7 @@ public class GivensThinSolver {
 
     @Override
     public void setQuick(int index, double value) {
-      m_viewed.setQuick(m_rowNum, index, value);
+      viewed.setQuick(rowNum, index, value);
 
     }
 
