@@ -42,9 +42,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.VectorWritable;
-import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 
 /**
  * Compute first level of QHat-transpose blocks.
@@ -259,7 +259,7 @@ public class QJob {
         flushQBlocks(context);
 
       } finally {
-        IOUtil.closeAll(closeables);
+        IOUtils.closeAll(closeables);
       }
 
     }
@@ -279,7 +279,7 @@ public class QJob {
             context.getConfiguration(), tempQPath, IntWritable.class,
             DenseBlockWritable.class, CompressionType.BLOCK);
         closeables.addFirst(tempQw);
-        closeables.addFirst(new IOUtil.DeleteFileOnClose(new File(tempQw
+        closeables.addFirst(new IOUtils.DeleteFileOnClose(new File(tempQw
             .toString())));
 
       }

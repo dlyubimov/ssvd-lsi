@@ -36,10 +36,10 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.io.Writable;
+import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
-import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 import org.apache.mahout.math.ssvd.EigenSolverWrapper;
 
 /**
@@ -316,7 +316,7 @@ public class SSVDSolver {
       throw new IOException(exc);
 
     } finally {
-      IOUtil.closeAll(closeables);
+      IOUtils.closeAll(closeables);
     }
 
   }
