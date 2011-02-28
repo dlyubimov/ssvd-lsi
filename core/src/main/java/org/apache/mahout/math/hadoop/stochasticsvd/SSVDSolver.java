@@ -50,6 +50,28 @@ import org.apache.mahout.math.ssvd.EigenSolverWrapper;
  * (https://issues.apache.org/jira/browse/MAHOUT-376).
  * <P>
  * 
+ * As of the time of this writing, I don't have benchmarks for this method 
+ * in comparison to other methods. However, non-hadoop differentiating 
+ * characteristics of this method are thought to be : 
+ * <LI> "faster" and precision is traded off in favor of speed. However, 
+ * there's lever in terms of "oversampling parameter" k. Higher values of k 
+ * produce better precision but are trading off speed (and minimum RAM requirement).
+ * This also means that this method is almost guaranteed to be less precise 
+ * than Lanczos unless full rank SVD decomposition is sought. 
+ * <LI> "more scale" -- can presumably take on larger problems than Lanczos one
+ * (not confirmed by benchmark at this time)
+ * <P><P>
+ * 
+ * Specifically regarding this implementation, <i>I think</i> couple of other differentiating points are: 
+ * <LI> no need to specify input matrix height or width in command line, it is what it 
+ * gets to be. 
+ * <LI> supports any Writable as DRM row keys and copies them to correspondent rows 
+ * of U matrix;
+ * <LI> can request U or V or U<sub>&sigma;</sub>=U* &Sigma;<sup>0.5</sup> or 
+ * V<sub>&sigma;</sub>=V* &Sigma;<sup>0.5</sup> none of which 
+ * would require pass over input A and these jobs are parallel map-only jobs.
+ * <P><P>
+ * 
  * This class is central public API for SSVD solver. The use pattern is as
  * follows:
  * 
