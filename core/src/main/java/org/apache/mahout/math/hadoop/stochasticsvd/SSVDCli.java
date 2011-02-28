@@ -34,7 +34,6 @@ import org.apache.mahout.math.VectorWritable;
 /**
  * Mahout CLI adapter for SSVDSolver
  * 
- * @author Dmitriy
  * 
  */
 public class SSVDCli extends AbstractJob {

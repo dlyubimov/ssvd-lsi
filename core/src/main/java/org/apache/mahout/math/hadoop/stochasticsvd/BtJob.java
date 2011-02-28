@@ -45,6 +45,11 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.stochasticsvd.QJob.QJobKeyWritable;
 
+/**
+ * Bt job. For details, see working notes in MAHOUT-376. 
+ *
+ */
+@SuppressWarnings("deprecation")
 public class BtJob {
 
   public static final String OUTPUT_Q = "Q";
@@ -54,33 +59,34 @@ public class BtJob {
   public static class BtMapper extends
       Mapper<Writable, VectorWritable, IntWritable, VectorWritable> {
 
-    private SequenceFile.Reader m_qInput;
-    private ArrayList<UpperTriangular> m_Rs = new ArrayList<UpperTriangular>();
-    private int m_blockNum;
-    private double[][] m_qt;
-    private int m_cnt = 0, m_r;
-    private MultipleOutputs m_outputs;
-    private IntWritable m_btKey = new IntWritable();
-    private VectorWritable m_btValue = new VectorWritable();
-    private int m_kp;
-    private VectorWritable m_qRowValue = new VectorWritable();
-    private int m_qCount; // debug
+    private SequenceFile.Reader qInput;
+    private ArrayList<UpperTriangular> mRs = new ArrayList<UpperTriangular>();
+    private int blockNum;
+    private double[][] mQt;
+    private int cnt ;
+    private int r;
+    private MultipleOutputs outputs;
+    private IntWritable btKey = new IntWritable();
+    private VectorWritable btValue = new VectorWritable();
+    private int kp;
+    private VectorWritable qRowValue = new VectorWritable();
+    private int qCount; // debug
 
     void loadNextQt(Context ctx) throws IOException, InterruptedException {
       QJobKeyWritable key = new QJobKeyWritable();
       DenseBlockWritable v = new DenseBlockWritable();
 
-      boolean more = m_qInput.next(key, v);
+      boolean more = qInput.next(key, v);
       assert more;
 
-      m_qt = GivensThinSolver.computeQtHat(v.getBlock(), m_blockNum == 0 ? 0
-          : 1, new GivensThinSolver.DeepCopyUTIterator(m_Rs.iterator()));
-      m_r = m_qt[0].length;
-      m_kp = m_qt.length;
-      if (m_btValue.get() == null)
-        m_btValue.set(new DenseVector(m_kp));
-      if (m_qRowValue.get() == null)
-        m_qRowValue.set(new DenseVector(m_kp));
+      mQt = GivensThinSolver.computeQtHat(v.getBlock(), blockNum == 0 ? 0
+          : 1, new GivensThinSolver.DeepCopyUTIterator(mRs.iterator()));
+      r = mQt[0].length;
+      kp = mQt.length;
+      if (btValue.get() == null)
+        btValue.set(new DenseVector(kp));
+      if (qRowValue.get() == null)
+        qRowValue.set(new DenseVector(kp));
 
       // also output QHat -- although we don't know the A labels there. Is it
       // important?
@@ -100,39 +106,40 @@ public class BtJob {
       // // it doesn't matter if it overflows.
       // m_outputs.write( OUTPUT_Q, oKey, oV);
       // }
-      m_qCount++;
+      qCount++;
     }
 
     @Override
     protected void cleanup(Context context) throws IOException,
         InterruptedException {
 
-      if (m_qInput != null)
-        m_qInput.close();
-      if (m_outputs != null)
-        m_outputs.close();
+      if (qInput != null)
+        qInput.close();
+      if (outputs != null)
+        outputs.close();
       super.cleanup(context);
     }
 
     @Override
+    @SuppressWarnings ({"unchecked"})
     protected void map(Writable key, VectorWritable value, Context context)
         throws IOException, InterruptedException {
-      if (m_qt != null && m_cnt++ == m_r)
-        m_qt = null;
-      if (m_qt == null) {
+      if (mQt != null && cnt++ == r)
+        mQt = null;
+      if (mQt == null) {
         loadNextQt(context);
-        m_cnt = 1;
+        cnt = 1;
       }
 
       // output Bt outer products
       Vector aRow = value.get();
-      int qRowIndex = m_r - m_cnt; // because QHats are initially stored in
+      int qRowIndex = r - cnt; // because QHats are initially stored in
                                    // reverse
-      Vector qRow = m_qRowValue.get();
-      for (int j = 0; j < m_kp; j++)
-        qRow.setQuick(j, m_qt[j][qRowIndex]);
+      Vector qRow = qRowValue.get();
+      for (int j = 0; j < kp; j++)
+        qRow.setQuick(j, mQt[j][qRowIndex]);
 
-      m_outputs.getCollector(OUTPUT_Q, null).collect(key, m_qRowValue); // make
+      outputs.getCollector(OUTPUT_Q, null).collect(key, qRowValue); // make
                                                                         // sure
                                                                         // Qs
                                                                         // are
@@ -141,13 +148,13 @@ public class BtJob {
                                                                         // labels.
 
       int n = aRow.size();
-      Vector m_btRow = m_btValue.get();
+      Vector m_btRow = btValue.get();
       for (int i = 0; i < n; i++) {
         double mul = aRow.getQuick(i);
-        for (int j = 0; j < m_kp; j++)
+        for (int j = 0; j < kp; j++)
           m_btRow.setQuick(j, mul * qRow.getQuick(j));
-        m_btKey.set(i);
-        context.write(m_btKey, m_btValue);
+        btKey.set(i);
+        context.write(btKey, btValue);
       }
 
     }
@@ -167,10 +174,10 @@ public class BtJob {
       // it from the mapper too as the QJob did.
       Path qInputPath = new Path(qJobPath, FileOutputFormat.getUniqueFile(
           context, QJob.OUTPUT_QHAT, ""));
-      m_qInput = new SequenceFile.Reader(fs, qInputPath,
+      qInput = new SequenceFile.Reader(fs, qInputPath,
           context.getConfiguration());
 
-      m_blockNum = context.getTaskAttemptID().getTaskID().getId();
+      blockNum = context.getTaskAttemptID().getTaskID().getId();
 
       // read all r files _in order of task ids_, i.e. partitions
       Path rPath = new Path(qJobPath, QJob.OUTPUT_R + "-*");
@@ -179,7 +186,7 @@ public class BtJob {
       if (rFiles == null)
         throw new IOException("Can't find R inputs ");
 
-      Arrays.sort(rFiles, SSVDSolver.s_partitionComparator);
+      Arrays.sort(rFiles, SSVDSolver.partitionComparator);
 
       QJobKeyWritable rKey = new QJobKeyWritable();
       VectorWritable rValue = new VectorWritable();
@@ -193,14 +200,14 @@ public class BtJob {
         } finally {
           rReader.close();
         }
-        if (block < m_blockNum && block > 0)
-          GivensThinSolver.mergeR(m_Rs.get(0),
+        if (block < blockNum && block > 0)
+          GivensThinSolver.mergeR(mRs.get(0),
               new UpperTriangular(rValue.get()));
         else
-          m_Rs.add(new UpperTriangular(rValue.get()));
+          mRs.add(new UpperTriangular(rValue.get()));
         block++;
       }
-      m_outputs = new MultipleOutputs(new JobConf(context.getConfiguration()));
+      outputs = new MultipleOutputs(new JobConf(context.getConfiguration()));
     }
   }
 

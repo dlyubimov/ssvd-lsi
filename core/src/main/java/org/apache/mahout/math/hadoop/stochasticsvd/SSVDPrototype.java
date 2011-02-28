@@ -40,102 +40,100 @@ import org.apache.mahout.math.ssvd.EigenSolverWrapper;
  */
 public class SSVDPrototype {
 
-  // private static final double s_qEpsilon=1e-10;
 
-  private Omega m_omega;
-  private int m_kp; // k+p
-  // private int m_m;
-  private GivensThinSolver m_qSolver;
-  private double[] m_yRow;
-  // private Vector m_yRowV;
-  private int m_cnt = 0, m_blckCnt;
-  private int m_r;
-  private List<UpperTriangular> m_rBlocks = new ArrayList<UpperTriangular>();
-  private List<double[][]> m_qtBlocks = new ArrayList<double[][]>();
-  private List<double[]> m_yLookahead;
+  private Omega omega;
+  private int kp; // k+p
+  private GivensThinSolver qSolver;
+  private double[] yRow;
+  private int cnt;
+  private int blckCnt;
+  private int r;
+  private List<UpperTriangular> rBlocks = new ArrayList<UpperTriangular>();
+  private List<double[][]> qtBlocks = new ArrayList<double[][]>();
+  private List<double[]> yLookahead;
 
   public SSVDPrototype(long seed, int kp, int r) {
     super();
-    m_kp = kp;
-    m_omega = new Omega(seed, kp / 2, kp - (kp / 2));
-    m_yRow = new double[kp];
+    this.kp = kp;
+    omega = new Omega(seed, kp / 2, kp - (kp / 2));
+    yRow = new double[kp];
     // m_yRowV = new DenseVector(m_yRow,true);
-    m_r = r;
-    m_yLookahead = new ArrayList<double[]>(m_kp);
+    this.r = r;
+    yLookahead = new ArrayList<double[]>(kp);
   }
 
   void firstPass(int aRowId, Vector aRow) throws IOException {
 
-    m_omega.computeYRow(aRow, m_yRow);
+    omega.computeYRow(aRow, yRow);
 
-    m_yLookahead.add(m_yRow.clone()); // bad for GC but it's just a prototype,
+    yLookahead.add(yRow.clone()); // bad for GC but it's just a prototype,
                                       // hey. in real thing we'll rotate usage
                                       // of y buff
 
-    while (m_yLookahead.size() > m_kp) {
+    while (yLookahead.size() > kp) {
 
-      if (m_qSolver == null)
-        m_qSolver = new GivensThinSolver(m_r, m_kp);
+      if (qSolver == null)
+        qSolver = new GivensThinSolver(r, kp);
 
-      m_qSolver.appendRow(m_yLookahead.remove(0));
-      if (m_qSolver.isFull()) {
-        UpperTriangular r = m_qSolver.getRTilde();
-        double[][] qt = m_qSolver.getThinQtTilde();
-        m_qSolver = null;
-        m_qtBlocks.add(qt);
-        m_rBlocks.add(r);
+      qSolver.appendRow(yLookahead.remove(0));
+      if (qSolver.isFull()) {
+        UpperTriangular r = qSolver.getRTilde();
+        double[][] qt = qSolver.getThinQtTilde();
+        qSolver = null;
+        qtBlocks.add(qt);
+        rBlocks.add(r);
       }
 
     }
-    m_cnt++;
+    cnt++;
   }
 
   void finishFirstPass() {
 
-    if (m_qSolver == null && m_yLookahead.size() == 0)
+    if (qSolver == null && yLookahead.size() == 0)
       return;
-    if (m_qSolver == null)
-      m_qSolver = new GivensThinSolver(m_yLookahead.size(), m_kp);
+    if (qSolver == null)
+      qSolver = new GivensThinSolver(yLookahead.size(), kp);
     // grow q solver up if necessary
 
-    m_qSolver.adjust(m_qSolver.getCnt() + m_yLookahead.size());
-    while (m_yLookahead.size() > 0) {
+    qSolver.adjust(qSolver.getCnt() + yLookahead.size());
+    while (yLookahead.size() > 0) {
 
-      m_qSolver.appendRow(m_yLookahead.remove(0));
-      if (m_qSolver.isFull()) {
-        UpperTriangular r = m_qSolver.getRTilde();
-        double[][] qt = m_qSolver.getThinQtTilde();
-        m_qSolver = null;
-        m_qtBlocks.add(qt);
-        m_rBlocks.add(r);
+      qSolver.appendRow(yLookahead.remove(0));
+      if (qSolver.isFull()) {
+        UpperTriangular r = qSolver.getRTilde();
+        double[][] qt = qSolver.getThinQtTilde();
+        qSolver = null;
+        qtBlocks.add(qt);
+        rBlocks.add(r);
       }
 
     }
 
     // simulate reducers -- produce qHats
-    for (int i = 0; i < m_rBlocks.size(); i++)
-      m_qtBlocks.set(i, GivensThinSolver.computeQtHat(m_qtBlocks.get(i), i,
-          new _DeepCopyIterator(m_rBlocks.listIterator())));
-    m_cnt = 0;
-    m_blckCnt = 0;
+    for (int i = 0; i < rBlocks.size(); i++)
+      qtBlocks.set(i, GivensThinSolver.computeQtHat(qtBlocks.get(i), i,
+          new DeepCopyIterator(rBlocks.listIterator())));
+    cnt = 0;
+    blckCnt = 0;
   }
 
   void secondPass(int aRowId, Vector aRow, PartialRowEmitter btEmitter)
-      throws IOException {
+    throws IOException {
     int n = aRow.size();
-    double[][] qtHat = m_qtBlocks.get(m_blckCnt);
+    double[][] qtHat = qtBlocks.get(blckCnt);
 
     int r = qtHat[0].length;
-    int qRowBlckIndex = r - m_cnt - 1; // <-- reverse order since we fed A in
+    int qRowBlckIndex = r - cnt - 1; // <-- reverse order since we fed A in
                                        // reverse
-    double[] qRow = new double[m_kp];
-    for (int i = 0; i < m_kp; i++)
+    double[] qRow = new double[kp];
+    for (int i = 0; i < kp; i++)
       qRow[i] = qtHat[i][qRowBlckIndex];
     Vector qRowV = new DenseVector(qRow, true);
 
-    if (++m_cnt == r) {
-      m_blckCnt++;
-      m_cnt = 0;
+    if (++cnt == r) {
+      blckCnt++;
+      cnt = 0;
     }
 
     for (int i = 0; i < n; i++)
@@ -143,11 +141,11 @@ public class SSVDPrototype {
 
   }
 
-  private static class _DeepCopyIterator implements Iterator<UpperTriangular> {
+  private static class DeepCopyIterator implements Iterator<UpperTriangular> {
 
     private Iterator<UpperTriangular> delegate;
 
-    public _DeepCopyIterator(Iterator<UpperTriangular> del) {
+    public DeepCopyIterator(Iterator<UpperTriangular> del) {
       super();
       delegate = del;
     }
@@ -168,7 +166,7 @@ public class SSVDPrototype {
   }
 
   public static void testThinQr(int dims, int kp, final long rndSeed)
-      throws Exception {
+    throws Exception {
 
     DenseMatrix mx = new DenseMatrix(dims << 2, dims);
     // mx.assign(new UnaryFunction() {
@@ -207,7 +205,7 @@ public class SSVDPrototype {
 
     long seed = new Random().nextLong();
 
-    final HashMap<Integer, Vector> btRows = new HashMap<Integer, Vector>();
+    final Map<Integer, Vector> btRows = new HashMap<Integer, Vector>();
 
     PartialRowEmitter btEmitter = new PartialRowEmitter() {
       @Override
@@ -232,7 +230,7 @@ public class SSVDPrototype {
     // false,1e-10);
 
     // reconstruct bbt
-    final HashMap<Integer, Vector> bbt = new HashMap<Integer, Vector>();
+    final Map<Integer, Vector> bbt = new HashMap<Integer, Vector>();
     PartialRowEmitter bbtEmitter = new PartialRowEmitter() {
 
       @Override
@@ -308,7 +306,7 @@ public class SSVDPrototype {
 
     int m = mx.rowSize(); /* ,n=mx.columnSize(); */
 
-    final HashMap<Integer, Vector> btRows = new HashMap<Integer, Vector>();
+    final Map<Integer, Vector> btRows = new HashMap<Integer, Vector>();
 
     PartialRowEmitter btEmitter = new PartialRowEmitter() {
       @Override
@@ -333,7 +331,7 @@ public class SSVDPrototype {
     // false,1e-10);
 
     // reconstruct bbt
-    final HashMap<Integer, Vector> bbt = new HashMap<Integer, Vector>();
+    final Map<Integer, Vector> bbt = new HashMap<Integer, Vector>();
     PartialRowEmitter bbtEmitter = new PartialRowEmitter() {
 
       @Override

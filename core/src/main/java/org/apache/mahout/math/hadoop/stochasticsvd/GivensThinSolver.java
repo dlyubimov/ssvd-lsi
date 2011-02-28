@@ -31,7 +31,6 @@ import org.apache.mahout.math.Vector;
  * Givens Thin solver. Standard Givens operations are reordered in a way that
  * helps us to push them thru MapReduce operations in a block fashion.
  * 
- * @author Dmitriy
  * 
  */
 public class GivensThinSolver {
@@ -40,15 +39,15 @@ public class GivensThinSolver {
 
   // private double[][] m_rTilde;
   // private Vector m_aRowV;
-  private double[] m_aRow, m_qtRow;
+  private double[] vARow, vQtRow;
   // private UpperTriangular m_rTilde;
   // private TriangularRowView m_rTildeRowView, m_rTildeRowView2;
-  private double[][] m_Qt;
-  private double[][] m_R;
-  private int m_qtStartRow, m_rStartRow;
-  private int m_m, m_n; // m-row cnt, n- column count, m>=n
-  private int m_cnt;
-  private double[] m_cs = new double[2];
+  private double[][] mQt;
+  private double[][] mR;
+  private int qtStartRow, rStartRow;
+  private int m, n; // m-row cnt, n- column count, m>=n
+  private int cnt;
+  private double[] cs = new double[2];
 
   public GivensThinSolver(int m, int n) {
     super();
@@ -56,90 +55,87 @@ public class GivensThinSolver {
     if (!(m >= n))
       throw new IllegalArgumentException("Givens thin QR: must be true: m>=n");
 
-    m_m = m;
-    m_n = n;
-    // m_rTilde = new UpperTriangular(n);
+    this.m = m;
+    this.n = n;
 
-    // m_rTildeRowView = new TriangularRowView(m_rTilde);
-    // m_rTildeRowView2 = new TriangularRowView(m_rTilde);
-    m_Qt = new double[n][];
-    m_R = new double[n][];
-    m_aRow = new double[n];
+    mQt = new double[n][];
+    mR = new double[n][];
+    vARow = new double[n];
     // m_aRowV = new DenseVector(m_aRow, true);
-    m_qtRow = new double[m];
+    vQtRow = new double[m];
 
     for (int i = 0; i < n; i++) {
-      m_Qt[i] = new double[m_m];
-      m_R[i] = new double[m_n];
+      mQt[i] = new double[this.m];
+      mR[i] = new double[this.n];
     }
-    m_cnt = 0;
+    cnt = 0;
   }
 
   public void reset() {
-    m_cnt = 0;
+    cnt = 0;
   }
 
   public void solve(Matrix a) {
 
-    assert a.rowSize() == m_m;
-    assert a.columnSize() == m_n;
+    assert a.rowSize() == m;
+    assert a.columnSize() == n;
 
-    double[] aRow = new double[m_n];
-    for (int i = 0; i < m_m; i++) {
+    double[] aRow = new double[n];
+    for (int i = 0; i < m; i++) {
       Vector aRowV = a.getRow(i);
-      for (int j = 0; j < m_n; j++)
+      for (int j = 0; j < n; j++)
         aRow[j] = aRowV.getQuick(j);
       appendRow(aRow);
     }
   }
 
   public boolean isFull() {
-    return m_cnt == m_m;
+    return cnt == m;
   }
 
   public int getM() {
-    return m_m;
+    return m;
   }
 
   public int getN() {
-    return m_n;
+    return n;
   }
 
   public int getCnt() {
-    return m_cnt;
+    return cnt;
   }
 
   public void adjust(int newM) {
-    if (newM == m_m)
+    if (newM == m)
       return; // no adjustment is required.
-    if (newM < m_n)
+    if (newM < n)
       throw new IllegalArgumentException("new m can't be less than n");
-    if (newM < m_cnt)
+    if (newM < cnt)
       throw new IllegalArgumentException(
           "new m can't be less than rows accumulated");
-    m_qtRow = new double[newM];
+    vQtRow = new double[newM];
 
     // grow or shrink qt rows
-    if (newM > m_m) {
+    if (newM > m) {
       // grow qt rows
-      for (int i = 0; i < m_n; i++) {
-        m_Qt[i] = Arrays.copyOf(m_Qt[i], newM);
-        System.arraycopy(m_Qt[i], 0, m_Qt[i], newM - m_m, m_m);
-        Arrays.fill(m_Qt[i], 0, newM - m_m, 0);
+      for (int i = 0; i < n; i++) {
+        mQt[i] = Arrays.copyOf(mQt[i], newM);
+        System.arraycopy(mQt[i], 0, mQt[i], newM - m, m);
+        Arrays.fill(mQt[i], 0, newM - m, 0);
       }
     } else {
       // shrink qt rows
-      for (int i = 0; i < m_n; i++) {
-        m_Qt[i] = Arrays.copyOfRange(m_Qt[i], m_m - newM, m_m);
+      for (int i = 0; i < n; i++) {
+        mQt[i] = Arrays.copyOfRange(mQt[i], m - newM, m);
       }
     }
 
-    m_m = newM;
+    m = newM;
 
   }
 
   public void trim() {
-    adjust(m_cnt);
+    adjust(cnt);
   }
 
   /**
@@ -148,7 +144,7 @@ public class GivensThinSolver {
    * @param aRow
    */
   public void appendRow(double[] aRow) {
-    if (m_cnt >= m_m)
+    if (cnt >= m)
       throw new RuntimeException(
           "thin QR solver fed more rows than initialized for");
     try {
@@ -156,30 +152,30 @@ public class GivensThinSolver {
       // for the sanity's sake i am keeping it this way so i don't
       // have to guess how R-tilde index maps to actual block index
 
-      Arrays.fill(m_qtRow, 0);
-      m_qtRow[m_m - m_cnt - 1] = 1;
-      int height = m_cnt > m_n ? m_n : m_cnt;
-      System.arraycopy(aRow, 0, m_aRow, 0, m_n);
+      Arrays.fill(vQtRow, 0);
+      vQtRow[m - cnt - 1] = 1;
+      int height = cnt > n ? n : cnt;
+      System.arraycopy(aRow, 0, vARow, 0, n);
 
       if (height > 0) {
-        givens(m_aRow[0], _getRRow(0)[0], m_cs);
-        applyGivensInPlace(m_cs[0], m_cs[1], m_aRow, _getRRow(0), 0, m_n);
-        applyGivensInPlace(m_cs[0], m_cs[1], m_qtRow, _getQtRow(0), 0, m_m);
+        givens(vARow[0], _getRRow(0)[0], cs);
+        applyGivensInPlace(cs[0], cs[1], vARow, _getRRow(0), 0, n);
+        applyGivensInPlace(cs[0], cs[1], vQtRow, _getQtRow(0), 0, m);
       }
 
       for (int i = 1; i < height; i++) {
-        givens(_getRRow(i - 1)[i], _getRRow(i)[i], m_cs);
-        applyGivensInPlace(m_cs[0], m_cs[1], _getRRow(i - 1), _getRRow(i), i,
-            m_n - i);
-        applyGivensInPlace(m_cs[0], m_cs[1], _getQtRow(i - 1), _getQtRow(i), 0,
-            m_m);
+        givens(_getRRow(i - 1)[i], _getRRow(i)[i], cs);
+        applyGivensInPlace(cs[0], cs[1], _getRRow(i - 1), _getRRow(i), i,
+            n - i);
+        applyGivensInPlace(cs[0], cs[1], _getQtRow(i - 1), _getQtRow(i), 0,
+            m);
       }
       // push qt and r-tilde 1 row down
       // just sqp the references to reduce GC churning
       _pushQtDown();
       double[] swap = _getQtRow(0);
-      _setQtRow(0, m_qtRow);
-      m_qtRow = swap;
+      _setQtRow(0, vQtRow);
+      vQtRow = swap;
 
       // triangular push -- obviously, less efficient than
       // this is terribly inefficient. for each row we are basically
@@ -195,58 +191,58 @@ public class GivensThinSolver {
       // m_rTilde.setQuick(0, i, m_aRow[i]);
       _pushRDown();
       swap = _getRRow(0);
-      _setRRow(0, m_aRow);
-      m_aRow = swap;
+      _setRRow(0, vARow);
+      vARow = swap;
 
     } finally {
-      m_cnt++;
+      cnt++;
     }
   }
 
   private double[] _getQtRow(int row) {
 
-    return m_Qt[(row += m_qtStartRow) >= m_n ? row - m_n : row];
+    return mQt[(row += qtStartRow) >= n ? row - n : row];
   }
 
   private void _setQtRow(int row, double[] qtRow) {
-    m_Qt[(row += m_qtStartRow) >= m_n ? row - m_n : row] = qtRow;
+    mQt[(row += qtStartRow) >= n ? row - n : row] = qtRow;
   }
 
   private void _pushQtDown() {
-    m_qtStartRow = m_qtStartRow == 0 ? m_n - 1 : m_qtStartRow - 1;
+    qtStartRow = qtStartRow == 0 ? n - 1 : qtStartRow - 1;
   }
 
   private double[] _getRRow(int row) {
-    return m_R[(row += m_rStartRow) >= m_n ? row - m_n : row];
+    return mR[(row += rStartRow) >= n ? row - n : row];
   }
 
   private void _setRRow(int row, double[] rrow) {
-    m_R[(row += m_rStartRow) >= m_n ? row - m_n : row] = rrow;
+    mR[(row += rStartRow) >= n ? row - n : row] = rrow;
   }
 
   private void _pushRDown() {
-    m_rStartRow = m_rStartRow == 0 ? m_n - 1 : m_rStartRow - 1;
+    rStartRow = rStartRow == 0 ? n - 1 : rStartRow - 1;
   }
 
   // warning: both of these return actually n+1 rows with the last one being
   // not interesting.
   public UpperTriangular getRTilde() {
-    UpperTriangular packedR = new UpperTriangular(m_n);
-    for (int i = 0; i < m_n; i++)
+    UpperTriangular packedR = new UpperTriangular(n);
+    for (int i = 0; i < n; i++)
       packedR.assignRow(i, _getRRow(i));
     return packedR;
   }
 
   public double[][] getThinQtTilde() {
-    if (m_qtStartRow != 0) {
+    if (qtStartRow != 0) {
       // rotate qt rows into place
-      double[][] qt = new double[m_n][]; // double[~500][], once per block, not
+      double[][] qt = new double[n][]; // double[~500][], once per block, not
                                          // a big deal.
-      System.arraycopy(m_Qt, m_qtStartRow, qt, 0, m_n - m_qtStartRow);
-      System.arraycopy(m_Qt, 0, qt, m_n - m_qtStartRow, m_qtStartRow);
+      System.arraycopy(mQt, qtStartRow, qt, 0, n - qtStartRow);
+      System.arraycopy(mQt, 0, qt, n - qtStartRow, qtStartRow);
       return qt;
     }
-    return m_Qt;
+    return mQt;
   }
 
   public static void applyGivensInPlace(double c, double s, double[] row1,

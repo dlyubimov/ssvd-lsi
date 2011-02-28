@@ -21,14 +21,20 @@ import org.apache.mahout.math.AbstractMatrix;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 
+/**
+ * 
+ * Quick and dirty implementation of some {@link Matrix} methods 
+ * over packed upper triangular matrix.
+ *
+ */
 public class UpperTriangular extends AbstractMatrix {
 
-  private static final double s_epsilon = 1e-12; // assume anything less than
+  private static final double EPSILON = 1e-12; // assume anything less than
                                                  // that to be 0 during
                                                  // non-upper assignments
 
-  private double[] m_values;
-  private int m_n;
+  private double[] values;
+  private int n;
 
   /**
    * represents n x n upper triangular matrix
@@ -39,36 +45,36 @@ public class UpperTriangular extends AbstractMatrix {
   public UpperTriangular(int n) {
     super();
 
-    m_values = new double[n * (n + 1) / 2];
-    m_n = n;
-    cardinality[0] = cardinality[1] = m_n;
+    values = new double[n * (n + 1) / 2];
+    this.n = n;
+    cardinality[0] = cardinality[1] = n;
   }
 
   public UpperTriangular(Vector data) {
-    m_n = (int) Math.round((-1 + Math.sqrt(1 + 8 * data.size())) / 2);
-    cardinality[0] = cardinality[1] = m_n;
-    m_values = new double[m_n * (m_n + 1) / 2];
+    n = (int) Math.round((-1 + Math.sqrt(1 + 8 * data.size())) / 2);
+    cardinality[0] = cardinality[1] = n;
+    values = new double[n * (n + 1) / 2];
     int n = data.size();
     // if ( data instanceof DenseVector )
     // ((DenseVector)data).
     // system.arraycopy would've been much faster, but this way it's a drag
     // on B-t job.
     for (int i = 0; i < n; i++)
-      m_values[i] = data.getQuick(i);
+      values[i] = data.getQuick(i);
   }
 
   public UpperTriangular(double[] data, boolean shallow) {
     super();
     if (data == null)
       throw new IllegalArgumentException("data");
-    m_values = shallow ? data : data.clone();
-    m_n = (int) Math.round((-1 + Math.sqrt(1 + 8 * data.length)) / 2);
-    cardinality[0] = cardinality[1] = m_n;
+    values = shallow ? data : data.clone();
+    n = (int) Math.round((-1 + Math.sqrt(1 + 8 * data.length)) / 2);
+    cardinality[0] = cardinality[1] = n;
   }
 
   // copy-constructor
   public UpperTriangular(UpperTriangular mx) {
-    this(mx.m_values, false);
+    this(mx.values, false);
   }
 
   @Override
@@ -80,15 +86,15 @@ public class UpperTriangular extends AbstractMatrix {
   @Override
   public Matrix assignRow(int row, Vector other) {
     for (int i = 0; i < row; i++)
-      if (other.getQuick(i) > s_epsilon)
+      if (other.getQuick(i) > EPSILON)
         throw new RuntimeException("non-triangular source");
-    for (int i = row; i < m_n; i++)
+    for (int i = row; i < n; i++)
       setQuick(row, i, other.get(i));
     return this;
   }
 
   public Matrix assignRow(int row, double[] other) {
-    System.arraycopy(other, row, m_values, getL(row, row), m_n - row);
+    System.arraycopy(other, row, values, getL(row, row), n - row);
     return this;
   }
 
@@ -106,11 +112,11 @@ public class UpperTriangular extends AbstractMatrix {
   public double getQuick(int row, int column) {
     if (row > column)
       return 0;
-    return m_values[getL(row, column)];
+    return values[getL(row, column)];
   }
 
   private int getL(int row, int col) {
-    return (((m_n << 1) - row + 1) * row >> 1) + col - row;
+    return (((n << 1) - row + 1) * row >> 1) + col - row;
   }
 
   @Override
@@ -125,7 +131,7 @@ public class UpperTriangular extends AbstractMatrix {
 
   @Override
   public void setQuick(int row, int column, double value) {
-    m_values[getL(row, column)] = value;
+    values[getL(row, column)] = value;
   }
 
   @Override
@@ -139,7 +145,7 @@ public class UpperTriangular extends AbstractMatrix {
   }
 
   double[] getData() {
-    return m_values;
+    return values;
   }
 
 }

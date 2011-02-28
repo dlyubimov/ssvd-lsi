@@ -25,28 +25,26 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.Vector.Element;
 
 /**
- * simplistic implementation for Omega matrix
- * 
- * @author dmitriy
+ * simplistic implementation for Omega matrix in Stochastic SVD method
  * 
  */
 public class Omega {
 
-  private long m_seed;
-  private Random m_rnd = new Random();
-  private int m_kp;
+  private long seed;
+  private Random rnd = new Random();
+  private int kp;
 
   public Omega(long seed, int k, int p) {
     super();
-    m_seed = seed;
-    m_kp = k + p;
+    this.seed = seed;
+    kp = k + p;
 
   }
 
   public void accumDots(int aIndex, double aElement, double[] yRow) {
-    m_rnd.setSeed(getOmegaRowSeed(aIndex, m_seed, m_rnd));
-    for (int i = 0; i < m_kp; i++)
-      yRow[i] += m_rnd.nextGaussian() * aElement;
+    rnd.setSeed(getOmegaRowSeed(aIndex, seed, rnd));
+    for (int i = 0; i < kp; i++)
+      yRow[i] += rnd.nextGaussian() * aElement;
   }
 
   /**
@@ -58,7 +56,7 @@ public class Omega {
    *          row of matrix Y (result) must be pre-allocated to size of (k+p)
    */
   public void computeYRow(Vector ARow, double[] YRow) {
-    assert YRow.length == m_kp;
+    assert YRow.length == kp;
 
     Arrays.fill(YRow, 0);
     if (ARow instanceof SequentialAccessSparseVector) {

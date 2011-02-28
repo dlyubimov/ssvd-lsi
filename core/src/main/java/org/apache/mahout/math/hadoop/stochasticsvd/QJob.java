@@ -51,9 +51,9 @@ import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
  * 
  * See Mahout-376 woking notes for details.
  * 
- * @author dmitriy
  * 
  */
+@SuppressWarnings("deprecation")
 public class QJob {
 
   public static final String PROP_OMEGA_SEED = "ssvd.omegaseed";
@@ -102,87 +102,89 @@ public class QJob {
   public static class QMapper extends
       Mapper<Writable, VectorWritable, QJobKeyWritable, VectorWritable> {
 
-    private int m_kp;
-    private Omega m_omega;
-    private ArrayList<double[]> m_yLookahead;
-    private GivensThinSolver m_qSolver;
-    private int m_blockCnt;
+    private int kp;
+    private Omega omega;
+    private ArrayList<double[]> yLookahead;
+    private GivensThinSolver qSolver;
+    private int blockCnt;
     // private int m_reducerCount;
-    private int m_r;
-    private DenseBlockWritable m_value = new DenseBlockWritable();
-    private QJobKeyWritable m_key = new QJobKeyWritable();
-    private IntWritable m_tempKey = new IntWritable();
-    private MultipleOutputs m_outputs;
-    private LinkedList<Closeable> m_closeables = new LinkedList<Closeable>();
-    private SequenceFile.Writer m_tempQw;
-    private Path m_tempQPath;
-    private ArrayList<UpperTriangular> m_rSubseq = new ArrayList<UpperTriangular>();
+    private int r;
+    private DenseBlockWritable value = new DenseBlockWritable();
+    private QJobKeyWritable key = new QJobKeyWritable();
+    private IntWritable tempKey = new IntWritable();
+    private MultipleOutputs outputs;
+    private LinkedList<Closeable> closeables = new LinkedList<Closeable>();
+    private SequenceFile.Writer tempQw;
+    private Path tempQPath;
+    private ArrayList<UpperTriangular> rSubseq = new ArrayList<UpperTriangular>();
 
     private void flushSolver(Context context) throws IOException,
         InterruptedException {
-      UpperTriangular r = m_qSolver.getRTilde();
-      double[][] qt = m_qSolver.getThinQtTilde();
+      UpperTriangular r = qSolver.getRTilde();
+      double[][] qt = qSolver.getThinQtTilde();
 
-      m_rSubseq.add(r);
+      rSubseq.add(r);
 
-      m_value.setBlock(qt);
-      getTempQw(context).append(m_tempKey, m_value); // this probably should be
+      value.setBlock(qt);
+      getTempQw(context).append(tempKey, value); // this probably should be
                                                      // a sparse row matrix,
       // but compressor should get it for disk and in memory we want it
       // dense anyway, sparse random implementations would be
       // a mostly a memory management disaster consisting of rehashes and GC
       // thrashing. (IMHO)
-      m_value.setBlock(null);
-      m_qSolver.reset();
+      value.setBlock(null);
+      qSolver.reset();
     }
 
     // second pass to run a modified version of computeQHatSequence.
+    @SuppressWarnings("unchecked")
     private void flushQBlocks(Context ctx) throws IOException,
         InterruptedException {
-      if (m_blockCnt == 1) {
+      if (blockCnt == 1) {
         // only one block, no temp file, no second pass. should be the default
         // mode
         // for efficiency in most cases. Sure mapper should be able to load
         // the entire split in memory -- and we don't require even that.
-        m_value.setBlock(m_qSolver.getThinQtTilde());
-        m_outputs.getCollector(OUTPUT_QHAT, null).collect(m_key, m_value);
-        m_outputs.getCollector(OUTPUT_R, null).collect(
-            m_key,
-            new VectorWritable(new DenseVector(m_qSolver.getRTilde().getData(),
+        value.setBlock(qSolver.getThinQtTilde());
+        outputs.getCollector(OUTPUT_QHAT, null).collect(key, value);
+        outputs.getCollector(OUTPUT_R, null).collect(
+            key,
+            new VectorWritable(new DenseVector(qSolver.getRTilde().getData(),
                 true)));
 
       } else
         secondPass(ctx);
     }
 
+    @SuppressWarnings("unchecked")
     private void secondPass(Context ctx) throws IOException,
         InterruptedException {
-      m_qSolver = null; // release mem
+      qSolver = null; // release mem
       FileSystem localFs = FileSystem.getLocal(ctx.getConfiguration());
       SequenceFile.Reader m_tempQr = new SequenceFile.Reader(localFs,
-          m_tempQPath, ctx.getConfiguration());
-      m_closeables.addFirst(m_tempQr);
+          tempQPath, ctx.getConfiguration());
+      closeables.addFirst(m_tempQr);
       int qCnt = 0;
-      while (m_tempQr.next(m_tempKey, m_value)) {
-        m_value
-            .setBlock(GivensThinSolver.computeQtHat(m_value.getBlock(), qCnt,
-                new GivensThinSolver.DeepCopyUTIterator(m_rSubseq.iterator())));
+      while (m_tempQr.next(tempKey, value)) {
+        value
+            .setBlock(GivensThinSolver.computeQtHat(value.getBlock(), qCnt,
+                new GivensThinSolver.DeepCopyUTIterator(rSubseq.iterator())));
         if (qCnt == 1) // just merge r[0] <- r[1] so it doesn't have to repeat
                        // in subsequent computeQHat iterators
-          GivensThinSolver.mergeR(m_rSubseq.get(0), m_rSubseq.remove(1));
+          GivensThinSolver.mergeR(rSubseq.get(0), rSubseq.remove(1));
 
         else
           qCnt++;
-        m_outputs.getCollector(OUTPUT_QHAT, null).collect(m_key, m_value);
+        outputs.getCollector(OUTPUT_QHAT, null).collect(key, value);
       }
 
-      assert m_rSubseq.size() == 1;
+      assert rSubseq.size() == 1;
 
       // m_value.setR(m_rSubseq.get(0));
-      m_outputs.getCollector(OUTPUT_R, null)
+      outputs.getCollector(OUTPUT_R, null)
           .collect(
-              m_key,
-              new VectorWritable(new DenseVector(m_rSubseq.get(0).getData(),
+              key,
+              new VectorWritable(new DenseVector(rSubseq.get(0).getData(),
                   true)));
 
     }
@@ -191,42 +193,41 @@ public class QJob {
     protected void map(Writable key, VectorWritable value, Context context)
         throws IOException, InterruptedException {
       double[] yRow = null;
-      if (m_yLookahead.size() == m_kp) {
-        if (m_qSolver.isFull()) {
+      if (yLookahead.size() == kp) {
+        if (qSolver.isFull()) {
 
           flushSolver(context);
-          m_blockCnt++;
+          blockCnt++;
 
         }
-        yRow = m_yLookahead.remove(0);
+        yRow = yLookahead.remove(0);
 
-        m_qSolver.appendRow(yRow);
+        qSolver.appendRow(yRow);
       } else
-        yRow = new double[m_kp];
-      m_omega.computeYRow(value.get(), yRow);
-      m_yLookahead.add(yRow);
+        yRow = new double[kp];
+      omega.computeYRow(value.get(), yRow);
+      yLookahead.add(yRow);
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     protected void setup(final Context context) throws IOException,
         InterruptedException {
 
       int k = Integer.parseInt(context.getConfiguration().get(PROP_K));
       int p = Integer.parseInt(context.getConfiguration().get(PROP_P));
-      m_kp = k + p;
+      kp = k + p;
       long omegaSeed = Long.parseLong(context.getConfiguration().get(
           PROP_OMEGA_SEED));
-      m_r = Integer.parseInt(context.getConfiguration()
+      r = Integer.parseInt(context.getConfiguration()
           .get(PROP_AROWBLOCK_SIZE));
-      m_omega = new Omega(omegaSeed, k, p);
-      m_yLookahead = new ArrayList<double[]>(m_kp);
-      m_qSolver = new GivensThinSolver(m_r, m_kp);
-      m_outputs = new MultipleOutputs(new JobConf(context.getConfiguration()));
-      m_closeables.addFirst(new Closeable() {
+      omega = new Omega(omegaSeed, k, p);
+      yLookahead = new ArrayList<double[]>(kp);
+      qSolver = new GivensThinSolver(r, kp);
+      outputs = new MultipleOutputs(new JobConf(context.getConfiguration()));
+      closeables.addFirst(new Closeable() {
         @Override
         public void close() throws IOException {
-          m_outputs.close();
+          outputs.close();
         }
       });
 
@@ -236,35 +237,35 @@ public class QJob {
     protected void cleanup(Context context) throws IOException,
         InterruptedException {
       try {
-        if (m_qSolver == null && m_yLookahead.size() == 0)
+        if (qSolver == null && yLookahead.size() == 0)
           return;
-        if (m_qSolver == null)
-          m_qSolver = new GivensThinSolver(m_yLookahead.size(), m_kp);
+        if (qSolver == null)
+          qSolver = new GivensThinSolver(yLookahead.size(), kp);
         // grow q solver up if necessary
 
-        m_qSolver.adjust(m_qSolver.getCnt() + m_yLookahead.size());
-        while (m_yLookahead.size() > 0) {
+        qSolver.adjust(qSolver.getCnt() + yLookahead.size());
+        while (yLookahead.size() > 0) {
 
-          m_qSolver.appendRow(m_yLookahead.remove(0));
+          qSolver.appendRow(yLookahead.remove(0));
 
         }
-        assert m_qSolver.isFull();
-        if (++m_blockCnt > 1) {
+        assert qSolver.isFull();
+        if (++blockCnt > 1) {
           flushSolver(context);
-          assert m_tempQw != null;
-          m_closeables.remove(m_tempQw);
-          m_tempQw.close();
+          assert tempQw != null;
+          closeables.remove(tempQw);
+          tempQw.close();
         }
         flushQBlocks(context);
 
       } finally {
-        IOUtil.closeAll(m_closeables);
+        IOUtil.closeAll(closeables);
       }
 
     }
 
     private SequenceFile.Writer getTempQw(Context context) throws IOException {
-      if (m_tempQw == null) {
+      if (tempQw == null) {
         // temporary Q output
         // hopefully will not exceed size of IO cache in which case it is only
         // good since it
@@ -273,16 +274,16 @@ public class QJob {
         // then at least it is always sequential.
         String taskTmpDir = System.getProperty("java.io.tmpdir");
         FileSystem localFs = FileSystem.getLocal(context.getConfiguration());
-        m_tempQPath = new Path(new Path(taskTmpDir), "q-temp.seq");
-        m_tempQw = SequenceFile.createWriter(localFs,
-            context.getConfiguration(), m_tempQPath, IntWritable.class,
+        tempQPath = new Path(new Path(taskTmpDir), "q-temp.seq");
+        tempQw = SequenceFile.createWriter(localFs,
+            context.getConfiguration(), tempQPath, IntWritable.class,
             DenseBlockWritable.class, CompressionType.BLOCK);
-        m_closeables.addFirst(m_tempQw);
-        m_closeables.addFirst(new IOUtil.DeleteFileOnClose(new File(m_tempQw
+        closeables.addFirst(tempQw);
+        closeables.addFirst(new IOUtil.DeleteFileOnClose(new File(tempQw
             .toString())));
 
       }
-      return m_tempQw;
+      return tempQw;
     }
   }
 

@@ -40,8 +40,6 @@ import org.apache.mahout.math.VectorWritable;
  * Compute B*Bt using simple fact that B*Bt = sum(outer prod ( B_(*i), (B_(*i))
  * ).
  * 
- * @author dmitriy
- * 
  */
 public class BBtJob {
 
@@ -91,9 +89,9 @@ public class BBtJob {
   public static class BBtMapper extends
       Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
 
-    private VectorWritable m_vw = new VectorWritable();
-    private IntWritable m_iw = new IntWritable();
-    private UpperTriangular m_bbtPartial; // are all partial BBt products
+    private VectorWritable vw = new VectorWritable();
+    private IntWritable iw = new IntWritable();
+    private UpperTriangular bbtPartial; // are all partial BBt products
                                           // symmetrical as well? yes.
 
     @Override
@@ -101,25 +99,25 @@ public class BBtJob {
         throws IOException, InterruptedException {
       Vector btVec = value.get();
       int kp = btVec.size();
-      if (m_bbtPartial == null) {
-        m_bbtPartial = new UpperTriangular(kp);
+      if (bbtPartial == null) {
+        bbtPartial = new UpperTriangular(kp);
       }
       for (int i = 0; i < kp; i++) {
         // this approach should reduce GC churn rate
         double mul = btVec.getQuick(i);
         for (int j = i; j < kp; j++)
-          m_bbtPartial.setQuick(i, j,
-              m_bbtPartial.getQuick(i, j) + mul * btVec.getQuick(j));
+          bbtPartial.setQuick(i, j,
+              bbtPartial.getQuick(i, j) + mul * btVec.getQuick(j));
       }
     }
 
     @Override
     protected void cleanup(Context context) throws IOException,
         InterruptedException {
-      if (m_bbtPartial != null) {
-        m_iw.set(context.getTaskAttemptID().getTaskID().getId());
-        m_vw.set(new DenseVector(m_bbtPartial.getData(), true));
-        context.write(m_iw, m_vw);
+      if (bbtPartial != null) {
+        iw.set(context.getTaskAttemptID().getTaskID().getId());
+        vw.set(new DenseVector(bbtPartial.getData(), true));
+        context.write(iw, vw);
       }
       super.cleanup(context);
     }
@@ -128,15 +126,15 @@ public class BBtJob {
   public static class BBtReducer extends
       Reducer<IntWritable, VectorWritable, IntWritable, VectorWritable> {
 
-    private double[] m_accum;
+    private double[] accum;
 
     @Override
     protected void cleanup(Context context) throws IOException,
         InterruptedException {
       try {
-        if (m_accum != null)
+        if (accum != null)
           context.write(new IntWritable(), new VectorWritable(new DenseVector(
-              m_accum, true)));
+              accum, true)));
       } finally {
         super.cleanup(context);
       }
@@ -147,12 +145,12 @@ public class BBtJob {
         Context ctx) throws IOException, InterruptedException {
       Iterator<VectorWritable> vwIter = ivw.iterator();
       Vector bbtPartial = vwIter.next().get();
-      if (m_accum == null) {
-        m_accum = new double[bbtPartial.size()];
+      if (accum == null) {
+        accum = new double[bbtPartial.size()];
       }
       do {
-        for (int i = 0; i < m_accum.length; i++)
-          m_accum[i] += bbtPartial.getQuick(i);
+        for (int i = 0; i < accum.length; i++)
+          accum[i] += bbtPartial.getQuick(i);
       } while (vwIter.hasNext() && null != (bbtPartial = vwIter.next().get()));
     }
 

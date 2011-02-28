@@ -21,6 +21,10 @@ import java.io.IOException;
 
 import org.apache.mahout.math.Vector;
 
+/**
+ * This is part of SSVD prototype code
+ *
+ */
 public interface PartialRowEmitter {
 
   public void emitRow(int rowNum, Vector row) throws IOException;

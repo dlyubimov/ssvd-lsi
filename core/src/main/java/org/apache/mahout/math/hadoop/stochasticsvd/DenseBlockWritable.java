@@ -36,51 +36,50 @@ import org.apache.mahout.math.MatrixWritable;
  * care of it for the serialized size.
  * <P>
  * 
- * @author Dmitriy
  * 
  */
 public class DenseBlockWritable implements Writable {
-  double[][] m_block;
+  double[][] block;
 
   public DenseBlockWritable() {
     super();
   }
 
   public void setBlock(double[][] block) {
-    m_block = block;
+    this.block = block;
   }
 
   public double[][] getBlock() {
-    return m_block;
+    return block;
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
     int m = in.readInt();
     int n = in.readInt();
-    if (m_block == null)
-      m_block = new double[m][0];
-    else if (m_block.length != m)
-      m_block = Arrays.copyOf(m_block, m);
+    if (block == null)
+      block = new double[m][0];
+    else if (block.length != m)
+      block = Arrays.copyOf(block, m);
     for (int i = 0; i < m; i++) {
-      if (m_block[i] == null || m_block[i].length != n)
-        m_block[i] = new double[n];
+      if (block[i] == null || block[i].length != n)
+        block[i] = new double[n];
       for (int j = 0; j < n; j++)
-        m_block[i][j] = in.readDouble();
+        block[i][j] = in.readDouble();
 
     }
   }
 
   @Override
   public void write(DataOutput out) throws IOException {
-    int m = m_block.length;
-    int n = m_block.length == 0 ? 0 : m_block[0].length;
+    int m = block.length;
+    int n = block.length == 0 ? 0 : block[0].length;
 
     out.writeInt(m);
     out.writeInt(n);
     for (int i = 0; i < m; i++)
       for (int j = 0; j < n; j++)
-        out.writeDouble(m_block[i][j]);
+        out.writeDouble(block[i][j]);
   }
 
 }

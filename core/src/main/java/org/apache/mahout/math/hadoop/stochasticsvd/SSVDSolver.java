@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,7 +43,7 @@ import org.apache.mahout.math.hadoop.stochasticsvd.io.IOUtil;
 import org.apache.mahout.math.ssvd.EigenSolverWrapper;
 
 /**
- * Stochastic SVD solver.
+ * Stochastic SVD solver (API class).
  * <P>
  * 
  * Implementation details are in my working notes in MAHOUT-376
@@ -64,26 +65,27 @@ import org.apache.mahout.math.ssvd.EigenSolverWrapper;
  * </UL>
  * 
  * 
- * @author Dmitriy
  * 
  */
 public class SSVDSolver {
 
-  private double[] m_svalues;
-  private boolean m_computeU = true, m_computeV = true;
-  private String m_uPath;
-  private String m_vPath;
+  private double[] svalues;
+  private boolean computeU = true;
+  private boolean computeV = true;
+  private String uPath;
+  private String vPath;
 
   // configured stuff
-  private Configuration m_conf;
-  private Path[] m_inputPath;
-  private Path m_outputPath;
-  private int m_ablockRows;
-  private int m_k, m_p;
-  private int m_reduceTasks;
-  private int m_minSplitSize = -1;
-  private boolean m_cUHalfSigma = false;
-  private boolean m_cVHalfSigma = false;
+  private Configuration conf;
+  private Path[] inputPath;
+  private Path outputPath;
+  private int ablockRows;
+  private int k;
+  private int p;
+  private int reduceTasks;
+  private int minSplitSize = -1;
+  private boolean cUHalfSigma;
+  private boolean cVHalfSigma;
 
   /**
    * create new SSVD solver. Required parameters are passed to constructor to
@@ -112,21 +114,21 @@ public class SSVDSolver {
 
   public SSVDSolver(Configuration conf, Path[] inputPath, Path outputPath,
       int ablockRows, int k, int p, int reduceTasks) throws IOException {
-    m_conf = conf;
-    m_inputPath = inputPath;
-    m_outputPath = outputPath;
-    m_ablockRows = ablockRows;
-    m_k = k;
-    m_p = p;
-    m_reduceTasks = reduceTasks;
+    this.conf = conf;
+    this.inputPath = inputPath;
+    this.outputPath = outputPath;
+    this.ablockRows = ablockRows;
+    this.k = k;
+    this.p = p;
+    this.reduceTasks = reduceTasks;
   }
 
   public void setcUHalfSigma(boolean cUHat) {
-    this.m_cUHalfSigma = cUHat;
+    this.cUHalfSigma = cUHat;
   }
 
   public void setcVHalfSigma(boolean cVHat) {
-    this.m_cVHalfSigma = cVHat;
+    this.cVHalfSigma = cVHat;
   }
 
   /**
@@ -134,7 +136,7 @@ public class SSVDSolver {
    * 
    */
   public void setComputeU(boolean val) {
-    m_computeU = val;
+    computeU = val;
   }
 
   /**
@@ -144,7 +146,7 @@ public class SSVDSolver {
    *          true if we want to output V matrix. Default is true.
    */
   public void setComputeV(boolean val) {
-    m_computeV = val;
+    computeV = val;
   }
 
   /**
@@ -156,7 +158,7 @@ public class SSVDSolver {
    *          the minimum split size to use
    */
   public void setMinSplitSize(int size) {
-    m_minSplitSize = size;
+    minSplitSize = size;
   }
 
   /**
@@ -165,7 +167,7 @@ public class SSVDSolver {
    * @return singlular values (largest to smallest)
    */
   public double[] getSingularValues() {
-    return m_svalues;
+    return svalues;
   }
 
   /**
@@ -175,7 +177,7 @@ public class SSVDSolver {
    *         whatever reason.
    */
   public String getUPath() {
-    return m_uPath;
+    return uPath;
   }
 
   /**
@@ -185,7 +187,7 @@ public class SSVDSolver {
    *         whatever reason.
    */
   public String getVPath() {
-    return m_vPath;
+    return vPath;
   }
 
   /**
@@ -198,17 +200,17 @@ public class SSVDSolver {
 
     LinkedList<Closeable> closeables = new LinkedList<Closeable>();
     try {
-      Class<? extends Writable> labelType = _sniffInputLabelType(m_inputPath,
-          m_conf, closeables);
-      FileSystem fs = FileSystem.get(m_conf);
+      Class<? extends Writable> labelType = sniffInputLabelType(inputPath,
+          conf, closeables);
+      FileSystem fs = FileSystem.get(conf);
 
-      Path qPath = new Path(m_outputPath, "Q-job");
-      Path btPath = new Path(m_outputPath, "Bt-job");
-      Path bbtPath = new Path(m_outputPath, "BBt-job");
-      Path uHatPath = new Path(m_outputPath, "UHat");
-      Path svPath = new Path(m_outputPath, "Sigma");
-      Path uPath = new Path(m_outputPath, "U");
-      Path vPath = new Path(m_outputPath, "V");
+      Path qPath = new Path(outputPath, "Q-job");
+      Path btPath = new Path(outputPath, "Bt-job");
+      Path bbtPath = new Path(outputPath, "BBt-job");
+      Path uHatPath = new Path(outputPath, "UHat");
+      Path svPath = new Path(outputPath, "Sigma");
+      Path uPath = new Path(outputPath, "U");
+      Path vPath = new Path(outputPath, "V");
 
       fs.delete(qPath, true); // or we can't re-run it repeatedly, just in case.
       fs.delete(btPath, true);
@@ -221,43 +223,43 @@ public class SSVDSolver {
       Random rnd = new Random();
       long seed = rnd.nextLong();
 
-      QJob.run(m_conf, m_inputPath, qPath, m_ablockRows, m_minSplitSize, m_k,
-          m_p, seed, m_reduceTasks);
+      QJob.run(conf, inputPath, qPath, ablockRows, minSplitSize, k, p, seed,
+          reduceTasks);
 
-      BtJob.run(m_conf, m_inputPath, qPath, btPath, m_minSplitSize, m_k, m_p,
-          m_reduceTasks, labelType);
+      BtJob.run(conf, inputPath, qPath, btPath, minSplitSize, k, p,
+          reduceTasks, labelType);
 
-      BBtJob.run(m_conf, new Path(btPath, BtJob.OUTPUT_Bt + "-*"), bbtPath, 1);
+      BBtJob.run(conf, new Path(btPath, BtJob.OUTPUT_Bt + "-*"), bbtPath, 1);
 
       UpperTriangular bbt = loadUpperTriangularMatrix(fs, new Path(bbtPath,
-          BBtJob.OUTPUT_BBt + "-*"), m_conf);
+          BBtJob.OUTPUT_BBt + "-*"), conf);
 
       // convert bbt to something our eigensolver could understand
-      assert bbt.columnSize() == m_k + m_p;
+      assert bbt.columnSize() == k + p;
 
-      double[][] bbtSquare = new double[m_k + m_p][];
-      for (int i = 0; i < m_k + m_p; i++)
-        bbtSquare[i] = new double[m_k + m_p];
+      double[][] bbtSquare = new double[k + p][];
+      for (int i = 0; i < k + p; i++)
+        bbtSquare[i] = new double[k + p];
 
-      for (int i = 0; i < m_k + m_p; i++)
-        for (int j = i; j < m_k + m_p; j++)
+      for (int i = 0; i < k + p; i++)
+        for (int j = i; j < k + p; j++)
           bbtSquare[i][j] = bbtSquare[j][i] = bbt.getQuick(i, j);
 
-      m_svalues = new double[m_k + m_p];
+      svalues = new double[k + p];
 
       // try something else.
       EigenSolverWrapper eigenWrapper = new EigenSolverWrapper(bbtSquare);
 
       double[] eigenva2 = eigenWrapper.getEigenValues();
-      for (int i = 0; i < m_k + m_p; i++)
-        m_svalues[i] = Math.sqrt(eigenva2[i]); // sqrt?
+      for (int i = 0; i < k + p; i++)
+        svalues[i] = Math.sqrt(eigenva2[i]); // sqrt?
 
       // save/redistribute UHat
       //
       double[][] uHat = eigenWrapper.getUHat();
 
       fs.mkdirs(uHatPath);
-      SequenceFile.Writer uHatWriter = SequenceFile.createWriter(fs, m_conf,
+      SequenceFile.Writer uHatWriter = SequenceFile.createWriter(fs, conf,
           uHatPath = new Path(uHatPath, "uhat.seq"), IntWritable.class,
           VectorWritable.class, CompressionType.BLOCK);
       closeables.addFirst(uHatWriter);
@@ -274,13 +276,13 @@ public class SSVDSolver {
       closeables.remove(uHatWriter);
       uHatWriter.close();
 
-      SequenceFile.Writer svWriter = SequenceFile.createWriter(fs, m_conf,
+      SequenceFile.Writer svWriter = SequenceFile.createWriter(fs, conf,
           svPath = new Path(svPath, "svalues.seq"), IntWritable.class,
           VectorWritable.class, CompressionType.BLOCK);
 
       closeables.addFirst(svWriter);
 
-      vw.set(new DenseVector(m_svalues, true));
+      vw.set(new DenseVector(svalues, true));
       svWriter.append(iw, vw);
 
       closeables.remove(svWriter);
@@ -288,23 +290,24 @@ public class SSVDSolver {
 
       UJob ujob = null;
       VJob vjob = null;
-      if (m_computeU)
-        (ujob = new UJob()).start(m_conf, new Path(btPath, BtJob.OUTPUT_Q
-            + "-*"), uHatPath, svPath, uPath, m_k, m_reduceTasks, labelType,
-            m_cUHalfSigma); // actually this is map-only job anyway
+      if (computeU)
+        (ujob = new UJob()).start(conf,
+            new Path(btPath, BtJob.OUTPUT_Q + "-*"), uHatPath, svPath, uPath,
+            k, reduceTasks, labelType, cUHalfSigma); // actually this is
+                                                     // map-only job anyway
 
-      if (m_computeV)
-        (vjob = new VJob())
-            .start(m_conf, new Path(btPath, BtJob.OUTPUT_Bt + "-*"), uHatPath,
-                svPath, vPath, m_k, m_reduceTasks, m_cVHalfSigma);
+      if (computeV)
+        (vjob = new VJob()).start(conf,
+            new Path(btPath, BtJob.OUTPUT_Bt + "-*"), uHatPath, svPath, vPath,
+            k, reduceTasks, cVHalfSigma);
 
       if (ujob != null) {
         ujob.waitForCompletion();
-        m_uPath = uPath.toString();
+        this.uPath = uPath.toString();
       }
       if (vjob != null) {
         vjob.waitForCompletion();
-        m_vPath = vPath.toString();
+        this.vPath = vPath.toString();
       }
 
     } catch (InterruptedException exc) {
@@ -318,12 +321,12 @@ public class SSVDSolver {
 
   }
 
-  private static Class<? extends Writable> _sniffInputLabelType(
+  private static Class<? extends Writable> sniffInputLabelType(
       Path[] inputPath, Configuration conf, LinkedList<Closeable> closeables)
-      throws IOException {
+    throws IOException {
     FileSystem fs = FileSystem.get(conf);
     for (Path p : inputPath) {
-      FileStatus fstats[] = fs.globStatus(p);
+      FileStatus[] fstats = fs.globStatus(p);
       if (fstats == null || fstats.length == 0)
         continue;
       SequenceFile.Reader r = new SequenceFile.Reader(fs, fstats[0].getPath(),
@@ -342,27 +345,27 @@ public class SSVDSolver {
         "Unable to open input files to determine input label type.");
   }
 
-  private static final Pattern s_outputFilePattern = Pattern
+  private static final Pattern OUTPUT_FILE_PATTERN = Pattern
       .compile("(\\w+)-(m|r)-(\\d+)(\\.\\w+)?");
 
-  public static Comparator<FileStatus> s_partitionComparator = new Comparator<FileStatus>() {
-    private Matcher m_matcher = s_outputFilePattern.matcher("");
+  static Comparator<FileStatus> partitionComparator = new Comparator<FileStatus>() {
+    private Matcher matcher = OUTPUT_FILE_PATTERN.matcher("");
 
     @Override
     public int compare(FileStatus o1, FileStatus o2) {
-      m_matcher.reset(o1.getPath().getName());
-      if (!m_matcher.matches())
+      matcher.reset(o1.getPath().getName());
+      if (!matcher.matches())
         throw new RuntimeException(String.format(
             "Unexpected file name, unable to deduce partition #:%s", o1
                 .getPath().toString()));
-      int p1 = Integer.parseInt(m_matcher.group(3));
-      m_matcher.reset(o2.getPath().getName());
-      if (!m_matcher.matches())
+      int p1 = Integer.parseInt(matcher.group(3));
+      matcher.reset(o2.getPath().getName());
+      if (!matcher.matches())
         throw new RuntimeException(String.format(
             "Unexpected file name, unable to deduce partition #:%s", o2
                 .getPath().toString()));
 
-      int p2 = Integer.parseInt(m_matcher.group(3));
+      int p2 = Integer.parseInt(matcher.group(3));
       return p1 - p2;
     }
 
@@ -389,7 +392,7 @@ public class SSVDSolver {
     if (files == null)
       return null;
 
-    ArrayList<double[]> denseData = new ArrayList<double[]>();
+    List<double[]> denseData = new ArrayList<double[]>();
     IntWritable iw = new IntWritable();
     VectorWritable vw = new VectorWritable();
 
@@ -397,7 +400,7 @@ public class SSVDSolver {
 
     // assume it is partitioned output, so we need to read them up
     // in order of partitions.
-    Arrays.sort(files, s_partitionComparator);
+    Arrays.sort(files, partitionComparator);
 
     for (FileStatus fstat : files) {
       Path file = fstat.getPath();
@@ -435,7 +438,7 @@ public class SSVDSolver {
 
     // assume it is partitioned output, so we need to read them up
     // in order of partitions.
-    Arrays.sort(files, s_partitionComparator);
+    Arrays.sort(files, partitionComparator);
 
     for (FileStatus fstat : files) {
       Path file = fstat.getPath();
