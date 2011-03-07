@@ -134,7 +134,7 @@ public final class IOUtils {
    * 
    * 
    */
-  public static void closeAll(Collection<? extends Closeable> closeables)
+  public static void close(Collection<? extends Closeable> closeables)
     throws IOException {
     Throwable lastThr = null;
 

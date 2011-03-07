@@ -339,7 +339,7 @@ public class SSVDSolver {
       throw new IOException(exc);
 
     } finally {
-      IOUtils.closeAll(closeables);
+      IOUtils.close(closeables);
     }
 
   }

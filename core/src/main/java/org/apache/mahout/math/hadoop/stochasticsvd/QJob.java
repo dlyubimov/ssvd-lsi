@@ -260,7 +260,7 @@ public class QJob {
         flushQBlocks(context);
 
       } finally {
-        IOUtils.closeAll(closeables);
+        IOUtils.close(closeables);
       }
 
     }
