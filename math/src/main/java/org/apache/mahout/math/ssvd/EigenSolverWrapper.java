@@ -34,28 +34,24 @@ import org.apache.commons.math.linear.RealMatrix;
  * But for now commons-math seems to be more reliable.
  * 
  * 
- * @author Dmitriy
- *
  */
 public class EigenSolverWrapper {
     
-    private double[]    m_eigenvalues;
-    private double[][]  m_uHat;
+    private double[]    eigenvalues;
+    private double[][]  uHat;
 
     public EigenSolverWrapper(double[][] bbt ) {
         super();
         int dim=bbt.length;
         EigenDecompositionImpl evd2=new EigenDecompositionImpl(new Array2DRowRealMatrix(bbt),0);
-        m_eigenvalues=evd2.getRealEigenvalues();
+        eigenvalues=evd2.getRealEigenvalues();
         RealMatrix uHatrm= evd2.getV();
-        m_uHat = new double[dim][];
-        for ( int i = 0; i < dim; i++ ) m_uHat [i]=uHatrm.getRow(i);
+        uHat = new double[dim][];
+        for ( int i = 0; i < dim; i++ ) uHat [i]=uHatrm.getRow(i);
     }
     
-    public double[][] getUHat() { return m_uHat; }
-    public double[] getEigenValues() { return m_eigenvalues; } 
+    public double[][] getUHat() { return uHat; }
+    public double[] getEigenValues() { return eigenvalues; } 
     
-    
-
     
 }
