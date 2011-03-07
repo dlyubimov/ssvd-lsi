@@ -123,7 +123,7 @@ public final class IOUtils {
    *      closeables.addFirst(streamN);
    *      ...
    *   } finally {
-   *      IOUtils.closeAll(closeables);
+   *      IOUtils.close(closeables);
    *   }
    * </pre>
    * 
