@@ -41,8 +41,6 @@ import org.apache.mahout.math.VectorWritable;
 /**
  * Computes U=Q*Uhat of SSVD (optionally adding x pow(Sigma, 0.5) )
  * 
- * @author Dmitriy
- * 
  */
 public class UJob {
   private static final String OUTPUT_U = "u";
