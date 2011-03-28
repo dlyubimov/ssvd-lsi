@@ -15,36 +15,40 @@
  * limitations under the License.
  */
 
-package org.apache.mahout.cf.taste.impl.common;
+package org.apache.mahout.cf.taste.example.kddcup.track2;
 
-import com.google.common.base.Preconditions;
-import org.apache.mahout.cf.taste.common.Refreshable;
+final class UserResult {
 
-import java.util.concurrent.Callable;
+  private final long userID;
+  private final byte[] resultBytes;
 
-/**
- * Simply calls {@linkRefreshable#refresh(java.util.Collection)} on a {@link Refreshable}.
- *
- * @deprecated Not used by RefreshHelper anymore.
- */
-public final class RefreshRunnable implements Runnable, Callable<Void> {
+  UserResult(long userID, boolean[] result) {
 
-  private final Refreshable refreshable;
+    this.userID = userID;
 
-  public RefreshRunnable(Refreshable refreshable) {
-    Preconditions.checkNotNull(refreshable, "Refreshable cannot be null");
-    this.refreshable = refreshable;
+    int trueCount = 0;
+    for (boolean b : result) {
+      if (b) {
+        trueCount++;
+      }
+    }
+    if (trueCount != 3) {
+      throw new IllegalStateException();
+    }
+
+    resultBytes = new byte[result.length];
+    for (int i = 0; i < result.length; i++) {
+      resultBytes[i] = (byte) (result[i] ? '1' : '0');
+    }
   }
 
-  @Override
-  public void run() {
-    refreshable.refresh(null);
+  public long getUserID() {
+    return userID;
   }
 
-  @Override
-  public Void call() {
-    run();
-    return null;
+  public byte[] getResultBytes() {
+    return resultBytes;
   }
+
 
 }
